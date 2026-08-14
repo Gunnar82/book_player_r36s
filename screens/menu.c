@@ -72,9 +72,6 @@ static void add_directory_children(const char *path)
         int has_audio = directory_has_audio(paths[i]);
         int has_dirs = directory_has_subdirectories(paths[i]);
 
-        /* Ein Ordner mit Unterordnern bleibt navigierbar, auch wenn er
-           selbst bereits Audiodateien enthaelt. Nach dem Oeffnen erscheint
-           dann "[Dieses Hoerspiel abspielen]". */
         if (has_dirs) {
             char label[256];
             snprintf(label, sizeof(label), "%s/", names[i]);
@@ -99,14 +96,12 @@ static void build_root(ScreenContext *c)
 
         add_directory_children(c->storage_paths[si].path);
 
-        /* Speicher ohne nutzbaren Inhalt gar nicht darstellen. */
         if (entry_count == before + 1) entry_count = before;
     }
 
     if (entry_count > 0)
         add_entry(BROWSER_HEADING, "Weiteres", "", 0);
-    add_entry(BROWSER_ACTION, "Sleeptimer", "", 2);
-    add_entry(BROWSER_ACTION, "Systeminformationen", "", 3);
+    add_entry(BROWSER_ACTION, "System", "", 3);
     add_entry(BROWSER_ACTION, "Button Debug", "", 4);
     add_entry(BROWSER_ACTION, "Beenden", "", 0);
     add_entry(BROWSER_ACTION, "Herunterfahren", "", 1);
@@ -155,8 +150,6 @@ static int next_selectable(int from, int direction)
         i += direction;
     }
 
-    /* Zyklische Navigation: oben weiter -> letzter Eintrag,
-       unten weiter -> erster Eintrag. Ueberschriften werden uebersprungen. */
     if (direction < 0) {
         for (i = entry_count - 1; i >= 0; i--)
             if (entry_selectable(i)) return i;
@@ -286,10 +279,6 @@ static void activate(ScreenContext *c)
         switch (e->action) {
             case 0: *c->running = 0; break;
             case 1: c->shutdown_fn(c->music); *c->running = 0; break;
-            case 2:
-                if (*c->sleep_timer_active) *c->sleep_timer_active = 0;
-                else *c->screen = SCREEN_SLEEP_TIMER;
-                break;
             case 3: *c->screen = SCREEN_SYSTEM_INFO; break;
             case 4: *c->screen = SCREEN_BUTTON_DEBUG; break;
         }
