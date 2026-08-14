@@ -1,0 +1,6 @@
+hoerspiel_player
+*.o
+*.so
+lib/
+*.log
+.hoerspiel_player_state
