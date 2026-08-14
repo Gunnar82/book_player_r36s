@@ -1,0 +1,68 @@
+#include "player.h"
+#include "../audio.h"
+#include "../state.h"
+#include "../backlight.h"
+#include "../ui.h"
+#include <stdlib.h>
+
+static void start_current(ScreenContext *c,double resume){
+ if(*c->track_count<=0)return;
+ if(*c->music){Mix_HaltMusic();Mix_FreeMusic(*c->music);*c->music=NULL;}
+ *c->music=play_track(c->tracks,*c->track_index,resume,c->base_position,c->started_ticks,c->paused);
+ if(*c->music){*c->duration=get_duration(*c->music);*c->last_save=SDL_GetTicks();int pi=ensure_book_progress(c->book_paths[*c->book_index]);if(pi>=0){touch_book_progress(pi);save_state();}}
+}
+void player_handle_event(ScreenContext *c,const SDL_Event *e){
+ if(e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;
+  if(b==BUTTON_B){int pi=ensure_book_progress(c->book_paths[*c->book_index]);if(pi>=0){progress[pi].track=*c->track_index;progress[pi].position=get_position(*c->base_position,*c->started_ticks,*c->paused);}save_state();*c->screen=SCREEN_TRACKS;return;}
+  if(b==BUTTON_A){if(!*c->music)start_current(c,*c->base_position);else if(*c->paused){Mix_ResumeMusic();*c->started_ticks=SDL_GetTicks();*c->paused=0;}else if(Mix_PlayingMusic()){*c->base_position=get_position(*c->base_position,*c->started_ticks,0);Mix_PauseMusic();*c->paused=1;}return;}
+  if(b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT){if(*c->track_count>0){if(b==BUTTON_DPAD_LEFT){(*c->track_index)--;if(*c->track_index<0)*c->track_index=*c->track_count-1;}else{(*c->track_index)++;if(*c->track_index>=*c->track_count)*c->track_index=0;}start_current(c,0);}return;}
+ }
+ if(e->type==SDL_JOYAXISMOTION&&e->jaxis.axis==AXIS_X){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){double p=get_position(*c->base_position,*c->started_ticks,*c->paused)-SEEK_STEP;if(p<0)p=0;Mix_SetMusicPosition(p);*c->base_position=p;*c->started_ticks=SDL_GetTicks();*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){double p=get_position(*c->base_position,*c->started_ticks,*c->paused)+SEEK_STEP;if(*c->duration>0&&p>*c->duration)p=*c->duration;Mix_SetMusicPosition(p);*c->base_position=p;*c->started_ticks=SDL_GetTicks();*c->axis_x_lock=1;}if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;}
+}
+void player_render(ScreenContext *c){
+ if(*c->track_count<=0){draw_text(c->renderer,c->font,"Keine Hoerspiele gefunden",20,100,c->gray);return;}
+ double pos=get_position(*c->base_position,*c->started_ticks,*c->paused);if(pos<0)pos=0;
+ double pct=*c->duration>0?(pos/ *c->duration)*100.0:0;if(pct>100)pct=100;
+ char ptxt[64];format_time(pos,ptxt,sizeof(ptxt));
+
+ draw_text(c->renderer,c->font,c->book_names[*c->book_index],20,50,c->gray);
+ draw_text(c->renderer,c->font,c->tracks[*c->track_index].name,20,100,c->selected);
+ char tr[64];snprintf(tr,sizeof(tr),"Track %d / %d",*c->track_index+1,*c->track_count);draw_text(c->renderer,c->font,tr,20,142,c->white);
+
+ if(*c->duration>0){
+  char total[32],time[100],pc[32];format_time(*c->duration,total,sizeof(total));
+  snprintf(time,sizeof(time),"Track: %s / %s",ptxt,total);snprintf(pc,sizeof(pc),"%.0f %%",pct);
+  draw_text(c->renderer,c->font,time,20,178,c->white);draw_text_right(c->renderer,c->font,pc,600,178,c->white);
+  SDL_Rect bar={20,212,580,10};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bar);
+  SDL_Rect fill=bar;fill.w=(int)(bar.w*pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&fill);
+ }else{
+  draw_text(c->renderer,c->font,ptxt,20,178,c->white);
+  draw_text(c->renderer,c->font,"Track-Gesamtzeit nicht verfuegbar",20,212,c->gray);
+ }
+
+ if(*c->book_duration>0.0){
+  double book_pos=pos;
+  for(int i=0;i<*c->track_index;i++) book_pos+=c->track_durations[i];
+  if(book_pos<0)book_pos=0;if(book_pos>*c->book_duration)book_pos=*c->book_duration;
+  double book_pct=(book_pos/ *c->book_duration)*100.0;
+  char bp[32],bt[32],overall[128];
+  format_time(book_pos,bp,sizeof(bp));format_time(*c->book_duration,bt,sizeof(bt));
+  snprintf(overall,sizeof(overall),"Gesamt: %s / %s  (%.0f %%)",bp,bt,book_pct);
+  draw_text(c->renderer,c->font,overall,20,255,c->white);
+  SDL_Rect bbar={20,286,580,6};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bbar);
+  SDL_Rect bfill=bbar;bfill.w=(int)(bbar.w*book_pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&bfill);
+ }else{
+  draw_text(c->renderer,c->font,"Hoerspiel-Gesamtzeit nicht verfuegbar",20,255,c->gray);
+ }
+
+ if(idle_timer_minutes>0 && c->idle_timer_remaining_ms){
+  Uint32 rem=*c->idle_timer_remaining_ms; char idle[64];
+  int mins=(int)(rem/60000), secs=(int)((rem/1000)%60);
+  int playing=(*c->music && !*c->paused && Mix_PlayingMusic());
+  snprintf(idle,sizeof(idle),playing?"Idle: %d:%02d (pausiert)":"Idle: %d:%02d",mins,secs);
+  draw_text(c->renderer,c->font,idle,20,320,c->gray);
+ }
+ draw_text(c->renderer,c->font,*c->paused?"PAUSE":"Wiedergabe",20,350,c->white);
+ draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: Display",20,390,c->gray);
+ draw_text(c->renderer,c->font,"Links/Rechts: -/+15s",20,420,c->gray);
+}

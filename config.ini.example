@@ -1,0 +1,8 @@
+# Hoerspiel Player
+# Beliebig viele path= Eintraege sind moeglich.
+# Nicht vorhandene Pfade werden beim Start einfach ignoriert.
+
+[storage]
+path=/roms/hoerspiele
+path=/roms2/hoerspiele
+path=/mnt/usbdrive/hoerspiele

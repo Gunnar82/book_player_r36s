@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "state.h"
+#include "config.h"
+
+#ifndef MIX_MAX_VOLUME
+#define MIX_MAX_VOLUME 128
+#endif
+
+BookProgress progress[MAX_BOOKS];
+int progress_count = 0;
+
+int volume = MIX_MAX_VOLUME;
+int idle_timer_minutes = 0;
+
+static char progress_file[512];
+
+void setup_state_path(void)
+{
+    const char *home = getenv("HOME");
+    if (!home) home = "/root";
+    snprintf(progress_file, sizeof(progress_file), "%s/.hoerspiel_player_state", home);
+}
+
+void load_state(void)
+{
+    progress_count = 0;
+    FILE *fp = fopen(progress_file, "r");
+    if (!fp) return;
+    char line[800];
+    while (fgets(line, sizeof(line), fp) && progress_count < MAX_BOOKS) {
+        if (!strncmp(line, "@settings\t", 10)) {
+            int saved_volume = volume;
+            int saved_idle = idle_timer_minutes;
+            if (sscanf(line + 10, "%d\t%d", &saved_volume, &saved_idle) >= 1) {
+                volume = saved_volume;
+                if (volume < 0) volume = 0;
+                if (volume > MIX_MAX_VOLUME) volume = MIX_MAX_VOLUME;
+                idle_timer_minutes = saved_idle;
+                if (idle_timer_minutes < 0) idle_timer_minutes = 0;
+                if (idle_timer_minutes > IDLE_TIMER_MAX_MINUTES) idle_timer_minutes = IDLE_TIMER_MAX_MINUTES;
+            }
+            continue;
+        }
+        char *a = strchr(line, '\t'); if (!a) continue; *a++ = '\0';
+        char *b = strchr(a, '\t'); if (!b) continue; *b++ = '\0';
+        char *c = strchr(b, '\t'); if (!c) continue; *c++ = '\0';
+        char *d = strchr(c, '\t'); if (d) *d++ = '\0';
+        BookProgress *p = &progress[progress_count++];
+        memset(p, 0, sizeof(*p));
+        snprintf(p->path, sizeof(p->path), "%s", line);
+        p->track = atoi(a);
+        p->position = atof(b);
+        p->last_played = d ? atoll(d) : 0;
+        volume = atoi(c);
+        if (volume < 0) volume = 0;
+        if (volume > MIX_MAX_VOLUME) volume = MIX_MAX_VOLUME;
+    }
+    fclose(fp);
+}
+
+void save_state(void)
+{
+    FILE *fp = fopen(progress_file, "w");
+    if (!fp) return;
+    fprintf(fp, "@settings\t%d\t%d\n", volume, idle_timer_minutes);
+    for (int i = 0; i < progress_count; i++) {
+        fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\n", progress[i].path, progress[i].track,
+                progress[i].position, volume, progress[i].last_played);
+    }
+    fclose(fp);
+}
+
+int find_book_progress(const char *book_path)
+{
+    for (int i = 0; i < progress_count; i++) if (!strcmp(progress[i].path, book_path)) return i;
+    return -1;
+}
+
+int ensure_book_progress(const char *book_path)
+{
+    int i = find_book_progress(book_path);
+    if (i >= 0) return i;
+    if (progress_count >= MAX_BOOKS) return -1;
+    i = progress_count++;
+    memset(&progress[i], 0, sizeof(progress[i]));
+    snprintf(progress[i].path, sizeof(progress[i].path), "%s", book_path);
+    return i;
+}
+
+void touch_book_progress(int index)
+{
+    if (index < 0 || index >= progress_count) return;
+    progress[index].last_played = (long long)time(NULL);
+}
