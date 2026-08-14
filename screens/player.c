@@ -11,14 +11,51 @@ static void start_current(ScreenContext *c,double resume){
  *c->music=play_track(c->tracks,*c->track_index,resume,c->base_position,c->started_ticks,c->paused);
  if(*c->music){*c->duration=get_duration(*c->music);*c->last_save=SDL_GetTicks();int pi=ensure_book_progress(c->book_paths[*c->book_index]);if(pi>=0){touch_book_progress(pi);save_state();}}
 }
+
+static void change_track(ScreenContext *c,int direction){
+ if(*c->track_count<=0)return;
+ *c->track_index+=direction;
+ if(*c->track_index<0)*c->track_index=*c->track_count-1;
+ if(*c->track_index>=*c->track_count)*c->track_index=0;
+ start_current(c,0);
+}
+
+static void seek_relative(ScreenContext *c,double seconds){
+ if(!*c->music)return;
+ double p=get_position(*c->base_position,*c->started_ticks,*c->paused)+seconds;
+ if(p<0)p=0;
+ if(*c->duration>0&&p>*c->duration)p=*c->duration;
+ if(Mix_SetMusicPosition(p)==0){
+  *c->base_position=p;
+  *c->started_ticks=SDL_GetTicks();
+ }
+}
+
 void player_handle_event(ScreenContext *c,const SDL_Event *e){
  if(e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;
   if(b==BUTTON_B){int pi=ensure_book_progress(c->book_paths[*c->book_index]);if(pi>=0){progress[pi].track=*c->track_index;progress[pi].position=get_position(*c->base_position,*c->started_ticks,*c->paused);}save_state();*c->screen=SCREEN_TRACKS;return;}
   if(b==BUTTON_A){if(!*c->music)start_current(c,*c->base_position);else if(*c->paused){Mix_ResumeMusic();*c->started_ticks=SDL_GetTicks();*c->paused=0;}else if(Mix_PlayingMusic()){*c->base_position=get_position(*c->base_position,*c->started_ticks,0);Mix_PauseMusic();*c->paused=1;}return;}
-  if(b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT){if(*c->track_count>0){if(b==BUTTON_DPAD_LEFT){(*c->track_index)--;if(*c->track_index<0)*c->track_index=*c->track_count-1;}else{(*c->track_index)++;if(*c->track_index>=*c->track_count)*c->track_index=0;}start_current(c,0);}return;}
+  if(b==BUTTON_DPAD_LEFT){change_track(c,-1);return;}
+  if(b==BUTTON_DPAD_RIGHT){change_track(c,1);return;}
+  if(b==BUTTON_DPAD_UP){seek_relative(c,SEEK_STEP);return;}
+  if(b==BUTTON_DPAD_DOWN){seek_relative(c,-SEEK_STEP);return;}
  }
- if(e->type==SDL_JOYAXISMOTION&&e->jaxis.axis==AXIS_X){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){double p=get_position(*c->base_position,*c->started_ticks,*c->paused)-SEEK_STEP;if(p<0)p=0;Mix_SetMusicPosition(p);*c->base_position=p;*c->started_ticks=SDL_GetTicks();*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){double p=get_position(*c->base_position,*c->started_ticks,*c->paused)+SEEK_STEP;if(*c->duration>0&&p>*c->duration)p=*c->duration;Mix_SetMusicPosition(p);*c->base_position=p;*c->started_ticks=SDL_GetTicks();*c->axis_x_lock=1;}if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;}
+
+ /* Analogstick links/rechts: vorheriger/naechster Track. */
+ if(e->type==SDL_JOYAXISMOTION&&e->jaxis.axis==AXIS_X){
+  if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_track(c,-1);*c->axis_x_lock=1;}
+  else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_track(c,1);*c->axis_x_lock=1;}
+  if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;
+ }
+
+ /* Analogstick hoch/runter: +15 / -15 Sekunden. */
+ if(e->type==SDL_JOYAXISMOTION&&e->jaxis.axis==AXIS_Y){
+  if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){seek_relative(c,SEEK_STEP);*c->axis_y_lock=1;}
+  else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){seek_relative(c,-SEEK_STEP);*c->axis_y_lock=1;}
+  if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_y_lock=0;
+ }
 }
+
 void player_render(ScreenContext *c){
  if(*c->track_count<=0){draw_text(c->renderer,c->font,"Keine Hoerspiele gefunden",20,100,c->gray);return;}
  double pos=get_position(*c->base_position,*c->started_ticks,*c->paused);if(pos<0)pos=0;
@@ -64,5 +101,5 @@ void player_render(ScreenContext *c){
  }
  draw_text(c->renderer,c->font,*c->paused?"PAUSE":"Wiedergabe",20,350,c->white);
  draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: Display",20,390,c->gray);
- draw_text(c->renderer,c->font,"Links/Rechts: -/+15s",20,420,c->gray);
+ draw_text(c->renderer,c->font,"Hoch/Runter: +15s/-15s   Links/Rechts: Track -/+",20,420,c->gray);
 }
