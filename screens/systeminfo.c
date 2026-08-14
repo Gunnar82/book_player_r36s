@@ -58,11 +58,27 @@ static int build_lines(ScreenContext *c,InfoLine *lines){
     int brightness=get_brightness_percent();
     if(brightness>=0)snprintf(buf,sizeof(buf),"<  %d %%  >",brightness);else strcpy(buf,"--");
     add_line(lines,&n,"Helligkeit",buf,0);
+
+    add_line(lines,&n,"TIMER","",1);
+    if (*c->sleep_timer_active) {
+        Uint32 now = SDL_GetTicks();
+        Uint32 remaining = (*c->sleep_timer_end_ticks > now) ? (*c->sleep_timer_end_ticks - now) : 0;
+        int rem_min = (int)(remaining / 60000);
+        int rem_sec = (int)((remaining / 1000) % 60);
+        snprintf(buf,sizeof(buf),"<  %d min  >  %d:%02d",*c->sleep_timer_minutes,rem_min,rem_sec);
+    } else if (*c->sleep_timer_minutes > 0) {
+        snprintf(buf,sizeof(buf),"<  %d min  >",*c->sleep_timer_minutes);
+    } else {
+        snprintf(buf,sizeof(buf),"<  Aus  >");
+    }
+    add_line(lines,&n,"Sleeptimer",buf,0);
+
     if (idle_timer_minutes > 0)
         snprintf(buf,sizeof(buf),"<  %d min  >",idle_timer_minutes);
     else
         snprintf(buf,sizeof(buf),"<  Aus  >");
     add_line(lines,&n,"Idle-Timer",buf,0);
+
     add_line(lines,&n,"SPEICHER","",1);
     for(int i=0;i<*c->storage_path_count;i++){
         if(c->storage_paths[i].available){
@@ -75,10 +91,23 @@ static int build_lines(ScreenContext *c,InfoLine *lines){
     return n;
 }
 static int find_brightness_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Helligkeit"))return i;return -1;}
+static int find_sleep_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Sleeptimer"))return i;return -1;}
 static int find_idle_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Idle-Timer"))return i;return -1;}
 static int next_selectable(InfoLine *lines,int count,int from,int dir){int i=from+dir;while(i>=0&&i<count){if(!lines[i].heading)return i;i+=dir;}return from;}
 static void keep_visible(int count){int max=count-MAX_VISIBLE;if(max<0)max=0;if(selected_line<page_offset)page_offset=selected_line;if(selected_line>=page_offset+MAX_VISIBLE)page_offset=selected_line-MAX_VISIBLE+1;if(page_offset<0)page_offset=0;if(page_offset>max)page_offset=max;}
 static void change_brightness(int delta){int p=get_brightness_percent();if(p<0)return;p+=delta;if(p<10)p=10;if(p>100)p=100;set_brightness_percent(p);}
+static void change_sleep_timer(ScreenContext *c,int delta){
+    *c->sleep_timer_minutes += delta;
+    if(*c->sleep_timer_minutes < SLEEP_MIN_MINUTES) *c->sleep_timer_minutes = SLEEP_MIN_MINUTES;
+    if(*c->sleep_timer_minutes > SLEEP_MAX_MINUTES) *c->sleep_timer_minutes = SLEEP_MAX_MINUTES;
+    if(*c->sleep_timer_minutes == 0){
+        *c->sleep_timer_active = 0;
+        *c->sleep_timer_end_ticks = 0;
+    }else{
+        *c->sleep_timer_active = 1;
+        *c->sleep_timer_end_ticks = SDL_GetTicks() + (Uint32)(*c->sleep_timer_minutes * 60000);
+    }
+}
 static void change_idle_timer(int delta){
     idle_timer_minutes += delta;
     if(idle_timer_minutes < 0) idle_timer_minutes = 0;
@@ -97,17 +126,21 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
         if(b==BUTTON_DPAD_UP){selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);return;}
         if(b==BUTTON_DPAD_DOWN){selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);return;}
         int bl=find_brightness_line(lines,count);
+        int sl=find_sleep_line(lines,count);
         int il=find_idle_line(lines,count);
         if(b==BUTTON_DPAD_LEFT&&selected_line==bl){change_brightness(-BRIGHTNESS_STEP);return;}
         if(b==BUTTON_DPAD_RIGHT&&selected_line==bl){change_brightness(BRIGHTNESS_STEP);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==sl){change_sleep_timer(c,-SLEEP_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==sl){change_sleep_timer(c,SLEEP_STEP_MINUTES);return;}
         if(b==BUTTON_DPAD_LEFT&&selected_line==il){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);return;}
         if(b==BUTTON_DPAD_RIGHT&&selected_line==il){change_idle_timer(IDLE_TIMER_STEP_MINUTES);return;}
     }
     if(e->type==SDL_JOYAXISMOTION){
         if(e->jaxis.axis==AXIS_Y){if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);*c->axis_y_lock=1;}else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);*c->axis_y_lock=1;}if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_y_lock=0;}
         if(e->jaxis.axis==AXIS_X){
-            int bl=find_brightness_line(lines,count), il=find_idle_line(lines,count);
+            int bl=find_brightness_line(lines,count), sl=find_sleep_line(lines,count), il=find_idle_line(lines,count);
             if(selected_line==bl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_brightness(-BRIGHTNESS_STEP);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_brightness(BRIGHTNESS_STEP);*c->axis_x_lock=1;}}
+            else if(selected_line==sl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_sleep_timer(c,-SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_sleep_timer(c,SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}}
             else if(selected_line==il){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_idle_timer(IDLE_TIMER_STEP_MINUTES);*c->axis_x_lock=1;}}
             if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;
         }
@@ -115,7 +148,7 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
 }
 void systeminfo_render(ScreenContext *c){
     InfoLine lines[64];int count=build_lines(c,lines),max_offset=count-MAX_VISIBLE;if(max_offset<0)max_offset=0;if(page_offset>max_offset)page_offset=max_offset;keep_visible(count);
-    draw_text(c->renderer,c->font,"Systeminformationen",20,20,c->selected);int y=TOP_Y;
+    draw_text(c->renderer,c->font,"System",20,20,c->selected);int y=TOP_Y;
     for(int i=page_offset;i<count&&i<page_offset+MAX_VISIBLE;i++){if(lines[i].heading)draw_text(c->renderer,c->font,lines[i].label,25,y,c->selected);else{SDL_Color col=i==selected_line?c->selected:c->gray;draw_text(c->renderer,c->font,lines[i].label,35,y,col);draw_text_right(c->renderer,c->font,lines[i].value,SCREEN_W-35,y,i==selected_line?c->selected:c->white);}y+=LINE_H;}
     if(count>MAX_VISIBLE){int track_h=SCREEN_H-95,thumb_h=(track_h*MAX_VISIBLE)/count;if(thumb_h<18)thumb_h=18;int travel=track_h-thumb_h,thumb_y=55+(max_offset?(travel*page_offset)/max_offset:0);SDL_SetRenderDrawColor(c->renderer,70,70,80,255);SDL_Rect rail={SCREEN_W-8,55,2,track_h};SDL_RenderFillRect(c->renderer,&rail);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_Rect thumb={SCREEN_W-8,thumb_y,2,thumb_h};SDL_RenderFillRect(c->renderer,&thumb);}
     draw_text(c->renderer,c->font,"B: Zurueck  Hoch/Runter: Auswahl  Wert: Links/Rechts",20,SCREEN_H-25,c->gray);
