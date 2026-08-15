@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.1.1**
+**0.1.4**
 
 ## Funktionen
 
@@ -15,6 +15,8 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - Sleep- und Idle-Timer
 - Display-Backlight und Helligkeit
 - Akku-, CPU-, RAM- und Temperaturanzeige
+- Lautstärke im System-Menü einstellbar
+- Audio-Ausgabe im System-Menü sichtbar, sofern SDL sie ermitteln kann
 - USB-Mediatasten
 - Button-Debug über Linux-Input-Events
 - D-Pad, Analogstick und Shoulder-Button-Navigation
@@ -23,7 +25,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 - `Y`: Hörspielauswahl
 - `X`: Systemmenü mit System, Button Debug, Beenden und Herunterfahren
-- `EV_KEY 708`: Display an/aus
+- `MID` (`EV_KEY 708`): Display an/aus
 - Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
 
 ## Konfiguration
