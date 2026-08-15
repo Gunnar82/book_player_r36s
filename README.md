@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.1.4**
+**0.1.5**
 
 ## Funktionen
 
