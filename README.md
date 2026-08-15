@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.1.5**
+**0.1.7**
 
 ## Funktionen
 
@@ -66,7 +66,7 @@ Beide Starter erwarten die Hauptdatei
 r36s-usb-ssh-dhcp-server.sh
 ```
 
-im selben Verzeichnis. Auf dem R36S sollten daher alle drei Dateien gemeinsam unter `/roms/tools/` liegen. `USB-Network-Start.sh` ruft die Hauptdatei mit `start`, `USB-Network-Stop.sh` mit `stop` auf.
+im selben Verzeichnis. Auf dem R36S sollten daher alle drei Dateien gemeinsam unter `/roms/tools/` liegen. `USB-Network-Start.sh` ruft die Hauptdatei mit `start`, `USB-Network-Stop.sh` mit `stop` auf. Die Hauptdatei unterstützt zusätzlich `restart`, `status` und ohne Parameter den Toggle-Modus.
 
 ## Build
 
