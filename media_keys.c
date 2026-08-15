@@ -1,4 +1,6 @@
 #include "media_keys.h"
+#include "config.h"
+#include "backlight.h"
 
 #include <linux/input.h>
 #include <fcntl.h>
@@ -105,8 +107,13 @@ int media_keys_poll(MediaKeys *mk, MediaKeyAction *actions, int max_actions)
 
             if (n == (ssize_t)sizeof(ev)) {
                 /* Nur den echten Tastendruck behandeln. Release (0) und
-                   Auto-Repeat (2) duerfen keinen doppelten Tracksprung ausloesen. */
+                   Auto-Repeat (2) duerfen keine Aktion doppelt ausloesen. */
                 if (ev.type == EV_KEY && ev.value == 1) {
+                    if (ev.code == EV_KEY_TOGGLE_DISPLAY) {
+                        toggle_display_hw();
+                        continue;
+                    }
+
                     MediaKeyAction action = map_key(ev.code);
                     if (action != MEDIA_KEY_NONE) {
                         actions[count++] = action;
@@ -120,8 +127,6 @@ int media_keys_poll(MediaKeys *mk, MediaKeyAction *actions, int max_actions)
             if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
                 break;
 
-            /* USB-Geraet verschwunden oder Event-Node unbrauchbar. Beim
-               naechsten Scan wird er automatisch erneut geoeffnet. */
             close(fd);
             mk->fds[i] = -1;
             break;
