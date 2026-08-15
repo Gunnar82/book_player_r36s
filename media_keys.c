@@ -109,7 +109,7 @@ int media_keys_poll(MediaKeys *mk, MediaKeyAction *actions, int max_actions)
                 /* Nur den echten Tastendruck behandeln. Release (0) und
                    Auto-Repeat (2) duerfen keine Aktion doppelt ausloesen. */
                 if (ev.type == EV_KEY && ev.value == 1) {
-                    if (ev.code == EV_KEY_TOGGLE_DISPLAY) {
+                    if (ev.code == EV_KEY_MID) {
                         toggle_display_hw();
                         continue;
                     }
