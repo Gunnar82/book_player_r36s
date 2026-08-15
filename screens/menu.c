@@ -18,15 +18,13 @@ typedef enum {
     BROWSER_PARENT,
     BROWSER_DIRECTORY,
     BROWSER_BOOK,
-    BROWSER_PLAY_CURRENT,
-    BROWSER_ACTION
+    BROWSER_PLAY_CURRENT
 } BrowserEntryType;
 
 typedef struct {
     BrowserEntryType type;
     char label[256];
     char path[512];
-    int action;
 } BrowserEntry;
 
 static BrowserEntry entries[MAX_BROWSER_ENTRIES];
@@ -43,7 +41,7 @@ static int entry_selectable(int i)
 }
 
 static void add_entry(BrowserEntryType type, const char *label,
-                      const char *path, int action)
+                      const char *path)
 {
     if (entry_count >= MAX_BROWSER_ENTRIES) return;
     entries[entry_count].type = type;
@@ -51,7 +49,6 @@ static void add_entry(BrowserEntryType type, const char *label,
              "%s", label ? label : "");
     snprintf(entries[entry_count].path, sizeof(entries[entry_count].path),
              "%s", path ? path : "");
-    entries[entry_count].action = action;
     entry_count++;
 }
 
@@ -75,9 +72,9 @@ static void add_directory_children(const char *path)
         if (has_dirs) {
             char label[256];
             snprintf(label, sizeof(label), "%s/", names[i]);
-            add_entry(BROWSER_DIRECTORY, label, paths[i], 0);
+            add_entry(BROWSER_DIRECTORY, label, paths[i]);
         } else if (has_audio) {
-            add_entry(BROWSER_BOOK, names[i], paths[i], 0);
+            add_entry(BROWSER_BOOK, names[i], paths[i]);
         }
     }
 }
@@ -88,32 +85,26 @@ static void build_root(ScreenContext *c)
         if (!c->storage_paths[si].available) continue;
 
         int before = entry_count;
-        add_entry(BROWSER_HEADING, c->storage_paths[si].path, "", 0);
+        add_entry(BROWSER_HEADING, c->storage_paths[si].path, "");
 
         if (directory_has_audio(c->storage_paths[si].path))
             add_entry(BROWSER_PLAY_CURRENT, "[Dieses Hoerspiel abspielen]",
-                      c->storage_paths[si].path, 0);
+                      c->storage_paths[si].path);
 
         add_directory_children(c->storage_paths[si].path);
 
-        if (entry_count == before + 1) entry_count = before;
+        if (entry_count == before + 1)
+            entry_count = before;
     }
-
-    if (entry_count > 0)
-        add_entry(BROWSER_HEADING, "Weiteres", "", 0);
-    add_entry(BROWSER_ACTION, "System", "", 3);
-    add_entry(BROWSER_ACTION, "Button Debug", "", 4);
-    add_entry(BROWSER_ACTION, "Beenden", "", 0);
-    add_entry(BROWSER_ACTION, "Herunterfahren", "", 1);
 }
 
 static void build_current_directory(void)
 {
-    add_entry(BROWSER_PARENT, "↵ Zurueck", "", 0);
+    add_entry(BROWSER_PARENT, "↵ Zurueck", "");
 
     if (directory_has_audio(current_path))
         add_entry(BROWSER_PLAY_CURRENT, "[Dieses Hoerspiel abspielen]",
-                  current_path, 0);
+                  current_path);
 
     add_directory_children(current_path);
 }
@@ -128,6 +119,7 @@ static void rebuild(ScreenContext *c)
 
     if (selection >= entry_count) selection = entry_count - 1;
     if (selection < 0) selection = 0;
+
     if (entry_count > 0 && !entry_selectable(selection)) {
         int found = -1;
         for (int i = selection; i < entry_count; i++)
@@ -137,6 +129,7 @@ static void rebuild(ScreenContext *c)
                 if (entry_selectable(i)) { found = i; break; }
         if (found >= 0) selection = found;
     }
+
     dirty = 0;
 }
 
@@ -173,7 +166,9 @@ static void keep_selection_visible(void)
 {
     int rows = visible_rows();
     if (selection < scroll_offset) scroll_offset = selection;
-    if (selection >= scroll_offset + rows) scroll_offset = selection - rows + 1;
+    if (selection >= scroll_offset + rows)
+        scroll_offset = selection - rows + 1;
+
     int max_scroll = entry_count - rows;
     if (max_scroll < 0) max_scroll = 0;
     if (scroll_offset < 0) scroll_offset = 0;
@@ -213,12 +208,14 @@ static void parent_directory(void)
     } else {
         char *slash = strrchr(current_path, '/');
         if (slash && slash > current_path) *slash = '\0';
+
         if (!strcmp(current_path, current_root) ||
             strlen(current_path) < strlen(current_root)) {
             current_path[0] = '\0';
             current_root[0] = '\0';
         }
     }
+
     selection = 0;
     scroll_offset = 0;
     dirty = 1;
@@ -273,15 +270,9 @@ static void activate(ScreenContext *c)
         parent_directory();
     } else if (e->type == BROWSER_DIRECTORY) {
         enter_directory(c, e->path);
-    } else if (e->type == BROWSER_BOOK || e->type == BROWSER_PLAY_CURRENT) {
+    } else if (e->type == BROWSER_BOOK ||
+               e->type == BROWSER_PLAY_CURRENT) {
         open_book(c, e->path);
-    } else if (e->type == BROWSER_ACTION) {
-        switch (e->action) {
-            case 0: *c->running = 0; break;
-            case 1: c->shutdown_fn(c->music); *c->running = 0; break;
-            case 3: *c->screen = SCREEN_SYSTEM_INFO; break;
-            case 4: *c->screen = SCREEN_BUTTON_DEBUG; break;
-        }
     }
 }
 
@@ -303,11 +294,14 @@ void menu_handle_event(ScreenContext *c, const SDL_Event *e)
 
     if (e->type == SDL_JOYAXISMOTION && e->jaxis.axis == AXIS_Y) {
         if (!*c->axis_y_lock && e->jaxis.value < -AXIS_DEADZONE) {
-            move_selection(-1, 1); *c->axis_y_lock = 1;
+            move_selection(-1, 1);
+            *c->axis_y_lock = 1;
         } else if (!*c->axis_y_lock && e->jaxis.value > AXIS_DEADZONE) {
-            move_selection(1, 1); *c->axis_y_lock = 1;
+            move_selection(1, 1);
+            *c->axis_y_lock = 1;
         }
-        if (abs(e->jaxis.value) < AXIS_DEADZONE) *c->axis_y_lock = 0;
+        if (abs(e->jaxis.value) < AXIS_DEADZONE)
+            *c->axis_y_lock = 0;
     }
 }
 
@@ -318,7 +312,8 @@ static void draw_book_progress(ScreenContext *c, const BrowserEntry *e,
     if (bi < 0 || c->book_track_counts[bi] <= 0) return;
 
     int pi = find_book_progress(e->path);
-    if (pi < 0 || (progress[pi].track <= 0 && progress[pi].position <= 0.0))
+    if (pi < 0 ||
+        (progress[pi].track <= 0 && progress[pi].position <= 0.0))
         return;
 
     int percent = (progress[pi].track * 100) / c->book_track_counts[bi];
@@ -350,16 +345,20 @@ void menu_render(ScreenContext *c)
 
     for (int i = scroll_offset; i < end; i++) {
         BrowserEntry *e = &entries[i];
+
         if (e->type == BROWSER_HEADING) {
             draw_text(c->renderer, c->font, e->label, 20, y, c->gray);
         } else {
             SDL_Color color = (i == selection) ? c->selected : c->white;
             int x = 45;
             draw_text(c->renderer, c->font, e->label, x, y, color);
-            if (e->type == BROWSER_BOOK || e->type == BROWSER_PLAY_CURRENT ||
+
+            if (e->type == BROWSER_BOOK ||
+                e->type == BROWSER_PLAY_CURRENT ||
                 e->type == BROWSER_DIRECTORY)
                 draw_book_progress(c, e, x, y);
         }
+
         y += MENU_ROW_H;
     }
 
@@ -368,18 +367,26 @@ void menu_render(ScreenContext *c)
         int track_h = MENU_BOTTOM_Y - track_y;
         int thumb_h = (track_h * rows) / entry_count;
         if (thumb_h < 18) thumb_h = 18;
+
         int max_scroll = entry_count - rows;
         if (max_scroll < 1) max_scroll = 1;
+
         int travel = track_h - thumb_h;
         int thumb_y = track_y + (travel * scroll_offset) / max_scroll;
+
         SDL_SetRenderDrawColor(c->renderer, 70,70,80,255);
         SDL_Rect rail = {SCREEN_W - 8, track_y, 2, track_h};
         SDL_RenderFillRect(c->renderer, &rail);
+
         SDL_SetRenderDrawColor(c->renderer, 230,210,70,255);
         SDL_Rect thumb = {SCREEN_W - 8, thumb_y, 2, thumb_h};
         SDL_RenderFillRect(c->renderer, &thumb);
     }
 
-    draw_text(c->renderer,c->font,"A: Auswaehlen   B: Player   X: Display",20,SCREEN_H-55,c->gray);
-    draw_text(c->renderer,c->font,"L1: Seite hoch  L2: Anfang  R1: Seite runter  R2: Ende",20,SCREEN_H-35,c->gray);
+    draw_text(c->renderer,c->font,
+              "A: Auswaehlen   B: Player   Y: Hoerspiele   X: Menue",
+              20,SCREEN_H-55,c->gray);
+    draw_text(c->renderer,c->font,
+              "L1: Seite hoch  L2: Anfang  R1: Seite runter  R2: Ende",
+              20,SCREEN_H-35,c->gray);
 }
