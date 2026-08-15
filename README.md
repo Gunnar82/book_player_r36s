@@ -19,6 +19,13 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - Button-Debug über Linux-Input-Events
 - D-Pad, Analogstick und Shoulder-Button-Navigation
 
+## Steuerung
+
+- `Y`: Hörspielauswahl
+- `X`: Systemmenü mit System, Button Debug, Beenden und Herunterfahren
+- `EV_KEY 708`: Display an/aus
+- Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
+
 ## Konfiguration
 
 `config.ini` liegt zur Laufzeit im selben Verzeichnis wie `hoerspiel_player`.
@@ -47,6 +54,8 @@ Auf dem Gerät müssen sie unter folgendem Pfad abgelegt werden:
 Der Starter `r36s-usb-network-start.sh` erwartet das Hauptskript `r36s-usb-ssh-dhcp-server.sh` im selben Verzeichnis. Entsprechend sollten beide Dateien auf dem R36S gemeinsam unter `/roms/tools/` liegen.
 
 ## Build
+
+Das Repository enthält ein Dockerfile für ARMv7. Die Screen-Dateien bleiben im Unterordner `src/screens/`; das Zusatzmenü wird aus `screens/systemmenu.c` gebaut.
 
 Benötigt:
 
