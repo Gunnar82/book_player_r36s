@@ -86,7 +86,7 @@ void set_display_off(int off)
     }
 }
 
-void toggle_display(void)
+void toggle_display_hw(void)
 {
     set_display_off(!display_off);
 }
@@ -95,7 +95,6 @@ int is_display_off(void)
 {
     return display_off;
 }
-
 
 int get_brightness_percent(void)
 {
