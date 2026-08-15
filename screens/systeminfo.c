@@ -10,6 +10,7 @@
 
 static int page_offset = 0;
 static int selected_line = 1;
+static int sleep_timer_edit_minutes = -1;
 static const int BRIGHTNESS_STEP = 5;
 static const int LINE_H = 27;
 static const int TOP_Y = 58;
@@ -60,7 +61,11 @@ static int build_lines(ScreenContext *c,InfoLine *lines){
     add_line(lines,&n,"Helligkeit",buf,0);
 
     add_line(lines,&n,"TIMER","",1);
-    if (*c->sleep_timer_active) {
+    int shown_sleep = sleep_timer_edit_minutes >= 0 ? sleep_timer_edit_minutes : *c->sleep_timer_minutes;
+    if (sleep_timer_edit_minutes >= 0) {
+        if (shown_sleep > 0) snprintf(buf,sizeof(buf),"<  %d min  >  A: OK",shown_sleep);
+        else snprintf(buf,sizeof(buf),"<  Aus  >  A: OK");
+    } else if (*c->sleep_timer_active) {
         Uint32 now = SDL_GetTicks();
         Uint32 remaining = (*c->sleep_timer_end_ticks > now) ? (*c->sleep_timer_end_ticks - now) : 0;
         int rem_min = (int)(remaining / 60000);
@@ -96,10 +101,15 @@ static int find_idle_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(
 static int next_selectable(InfoLine *lines,int count,int from,int dir){int i=from+dir;while(i>=0&&i<count){if(!lines[i].heading)return i;i+=dir;}return from;}
 static void keep_visible(int count){int max=count-MAX_VISIBLE;if(max<0)max=0;if(selected_line<page_offset)page_offset=selected_line;if(selected_line>=page_offset+MAX_VISIBLE)page_offset=selected_line-MAX_VISIBLE+1;if(page_offset<0)page_offset=0;if(page_offset>max)page_offset=max;}
 static void change_brightness(int delta){int p=get_brightness_percent();if(p<0)return;p+=delta;if(p<10)p=10;if(p>100)p=100;set_brightness_percent(p);}
-static void change_sleep_timer(ScreenContext *c,int delta){
-    *c->sleep_timer_minutes += delta;
-    if(*c->sleep_timer_minutes < SLEEP_MIN_MINUTES) *c->sleep_timer_minutes = SLEEP_MIN_MINUTES;
-    if(*c->sleep_timer_minutes > SLEEP_MAX_MINUTES) *c->sleep_timer_minutes = SLEEP_MAX_MINUTES;
+static void edit_sleep_timer(ScreenContext *c,int delta){
+    if(sleep_timer_edit_minutes < 0) sleep_timer_edit_minutes = *c->sleep_timer_minutes;
+    sleep_timer_edit_minutes += delta;
+    if(sleep_timer_edit_minutes < SLEEP_MIN_MINUTES) sleep_timer_edit_minutes = SLEEP_MIN_MINUTES;
+    if(sleep_timer_edit_minutes > SLEEP_MAX_MINUTES) sleep_timer_edit_minutes = SLEEP_MAX_MINUTES;
+}
+static void confirm_sleep_timer(ScreenContext *c){
+    if(sleep_timer_edit_minutes < 0) return;
+    *c->sleep_timer_minutes = sleep_timer_edit_minutes;
     if(*c->sleep_timer_minutes == 0){
         *c->sleep_timer_active = 0;
         *c->sleep_timer_end_ticks = 0;
@@ -107,6 +117,7 @@ static void change_sleep_timer(ScreenContext *c,int delta){
         *c->sleep_timer_active = 1;
         *c->sleep_timer_end_ticks = SDL_GetTicks() + (Uint32)(*c->sleep_timer_minutes * 60000);
     }
+    sleep_timer_edit_minutes = -1;
 }
 static void change_idle_timer(int delta){
     idle_timer_minutes += delta;
@@ -118,7 +129,7 @@ static void change_idle_timer(int delta){
 void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
     InfoLine lines[64];int count=build_lines(c,lines);if(selected_line>=count)selected_line=count-1;if(selected_line<0)selected_line=0;if(count>0&&lines[selected_line].heading)selected_line=next_selectable(lines,count,selected_line,1);
     if(e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;
-        if(b==BUTTON_B){page_offset=0;selected_line=1;*c->screen=SCREEN_MENU;return;}
+        if(b==BUTTON_B){sleep_timer_edit_minutes=-1;page_offset=0;selected_line=1;*c->screen=SCREEN_MENU;return;}
         if(b==BUTTON_L1){for(int i=0;i<MAX_VISIBLE;i++)selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);return;}
         if(b==BUTTON_L2){selected_line=0;while(selected_line<count&&lines[selected_line].heading)selected_line++;page_offset=0;return;}
         if(b==BUTTON_R1){for(int i=0;i<MAX_VISIBLE;i++)selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);return;}
@@ -128,10 +139,11 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
         int bl=find_brightness_line(lines,count);
         int sl=find_sleep_line(lines,count);
         int il=find_idle_line(lines,count);
+        if(b==BUTTON_A&&selected_line==sl){confirm_sleep_timer(c);return;}
         if(b==BUTTON_DPAD_LEFT&&selected_line==bl){change_brightness(-BRIGHTNESS_STEP);return;}
         if(b==BUTTON_DPAD_RIGHT&&selected_line==bl){change_brightness(BRIGHTNESS_STEP);return;}
-        if(b==BUTTON_DPAD_LEFT&&selected_line==sl){change_sleep_timer(c,-SLEEP_STEP_MINUTES);return;}
-        if(b==BUTTON_DPAD_RIGHT&&selected_line==sl){change_sleep_timer(c,SLEEP_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==sl){edit_sleep_timer(c,-SLEEP_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==sl){edit_sleep_timer(c,SLEEP_STEP_MINUTES);return;}
         if(b==BUTTON_DPAD_LEFT&&selected_line==il){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);return;}
         if(b==BUTTON_DPAD_RIGHT&&selected_line==il){change_idle_timer(IDLE_TIMER_STEP_MINUTES);return;}
     }
@@ -140,7 +152,7 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
         if(e->jaxis.axis==AXIS_X){
             int bl=find_brightness_line(lines,count), sl=find_sleep_line(lines,count), il=find_idle_line(lines,count);
             if(selected_line==bl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_brightness(-BRIGHTNESS_STEP);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_brightness(BRIGHTNESS_STEP);*c->axis_x_lock=1;}}
-            else if(selected_line==sl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_sleep_timer(c,-SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_sleep_timer(c,SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}}
+            else if(selected_line==sl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){edit_sleep_timer(c,-SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){edit_sleep_timer(c,SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}}
             else if(selected_line==il){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_idle_timer(IDLE_TIMER_STEP_MINUTES);*c->axis_x_lock=1;}}
             if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;
         }
@@ -151,5 +163,5 @@ void systeminfo_render(ScreenContext *c){
     draw_text(c->renderer,c->font,"System",20,20,c->selected);int y=TOP_Y;
     for(int i=page_offset;i<count&&i<page_offset+MAX_VISIBLE;i++){if(lines[i].heading)draw_text(c->renderer,c->font,lines[i].label,25,y,c->selected);else{SDL_Color col=i==selected_line?c->selected:c->gray;draw_text(c->renderer,c->font,lines[i].label,35,y,col);draw_text_right(c->renderer,c->font,lines[i].value,SCREEN_W-35,y,i==selected_line?c->selected:c->white);}y+=LINE_H;}
     if(count>MAX_VISIBLE){int track_h=SCREEN_H-95,thumb_h=(track_h*MAX_VISIBLE)/count;if(thumb_h<18)thumb_h=18;int travel=track_h-thumb_h,thumb_y=55+(max_offset?(travel*page_offset)/max_offset:0);SDL_SetRenderDrawColor(c->renderer,70,70,80,255);SDL_Rect rail={SCREEN_W-8,55,2,track_h};SDL_RenderFillRect(c->renderer,&rail);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_Rect thumb={SCREEN_W-8,thumb_y,2,thumb_h};SDL_RenderFillRect(c->renderer,&thumb);}
-    draw_text(c->renderer,c->font,"B: Zurueck  Hoch/Runter: Auswahl  Wert: Links/Rechts",20,SCREEN_H-25,c->gray);
+    draw_text(c->renderer,c->font,"B: Zurueck  A: OK  Hoch/Runter: Auswahl  Wert: Links/Rechts",20,SCREEN_H-25,c->gray);
 }
