@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Quell- und Header-Dateien; screens/ bleibt als Unterordner erhalten.
-COPY src/*.c src/*.h ./
-COPY src/screens ./screens
+# GitHub-Repository: Sources liegen direkt im Root, screens/ als Unterordner.
+COPY *.c *.h ./
+COPY screens ./screens
 
 RUN gcc -o hoerspiel_player \
     main.c state.c backlight.c battery.c led.c scanner.c audio.c ui.c \
