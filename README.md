@@ -34,6 +34,18 @@ path=/mnt/usbdrive/hoerspiele
 
 Weitere `path=`-Einträge können ergänzt werden.
 
+## USB-Netzwerk-Tools
+
+Die USB-Netzwerk-Skripte aus `scripts/` sind für die Verwendung durch DarkOS auf dem R36S vorgesehen.
+
+Auf dem Gerät müssen sie unter folgendem Pfad abgelegt werden:
+
+```text
+/roms/tools/
+```
+
+Der Starter `r36s-usb-network-start.sh` erwartet das Hauptskript `r36s-usb-ssh-dhcp-server.sh` im selben Verzeichnis. Entsprechend sollten beide Dateien auf dem R36S gemeinsam unter `/roms/tools/` liegen.
+
 ## Build
 
 Benötigt:
