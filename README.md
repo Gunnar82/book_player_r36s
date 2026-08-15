@@ -53,7 +53,20 @@ Auf dem Gerät müssen sie unter folgendem Pfad abgelegt werden:
 /roms/tools/
 ```
 
-Der Starter `r36s-usb-network-start.sh` erwartet das Hauptskript `r36s-usb-ssh-dhcp-server.sh` im selben Verzeichnis. Entsprechend sollten beide Dateien auf dem R36S gemeinsam unter `/roms/tools/` liegen.
+Die beiden DarkOS-/EmulationStation-Starter heißen:
+
+```text
+USB-Network-Start.sh
+USB-Network-Stop.sh
+```
+
+Beide Starter erwarten die Hauptdatei
+
+```text
+r36s-usb-ssh-dhcp-server.sh
+```
+
+im selben Verzeichnis. Auf dem R36S sollten daher alle drei Dateien gemeinsam unter `/roms/tools/` liegen. `USB-Network-Start.sh` ruft die Hauptdatei mit `start`, `USB-Network-Stop.sh` mit `stop` auf.
 
 ## Build
 
