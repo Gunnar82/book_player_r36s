@@ -40,15 +40,11 @@ void player_handle_event(ScreenContext *c,const SDL_Event *e){
   if(b==BUTTON_DPAD_UP){seek_relative(c,SEEK_STEP);return;}
   if(b==BUTTON_DPAD_DOWN){seek_relative(c,-SEEK_STEP);return;}
  }
-
- /* Analogstick links/rechts: vorheriger/naechster Track. */
  if(e->type==SDL_JOYAXISMOTION&&e->jaxis.axis==AXIS_X){
   if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_track(c,-1);*c->axis_x_lock=1;}
   else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_track(c,1);*c->axis_x_lock=1;}
   if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;
  }
-
- /* Analogstick hoch/runter: +15 / -15 Sekunden. */
  if(e->type==SDL_JOYAXISMOTION&&e->jaxis.axis==AXIS_Y){
   if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){seek_relative(c,SEEK_STEP);*c->axis_y_lock=1;}
   else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){seek_relative(c,-SEEK_STEP);*c->axis_y_lock=1;}
@@ -61,45 +57,24 @@ void player_render(ScreenContext *c){
  double pos=get_position(*c->base_position,*c->started_ticks,*c->paused);if(pos<0)pos=0;
  double pct=*c->duration>0?(pos/ *c->duration)*100.0:0;if(pct>100)pct=100;
  char ptxt[64];format_time(pos,ptxt,sizeof(ptxt));
-
  draw_text(c->renderer,c->font,c->book_names[*c->book_index],20,50,c->gray);
  draw_text(c->renderer,c->font,c->tracks[*c->track_index].name,20,100,c->selected);
  char tr[64];snprintf(tr,sizeof(tr),"Track %d / %d",*c->track_index+1,*c->track_count);draw_text(c->renderer,c->font,tr,20,142,c->white);
-
  if(*c->duration>0){
   char total[32],time[100],pc[32];format_time(*c->duration,total,sizeof(total));
   snprintf(time,sizeof(time),"Track: %s / %s",ptxt,total);snprintf(pc,sizeof(pc),"%.0f %%",pct);
   draw_text(c->renderer,c->font,time,20,178,c->white);draw_text_right(c->renderer,c->font,pc,600,178,c->white);
   SDL_Rect bar={20,212,580,10};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bar);
   SDL_Rect fill=bar;fill.w=(int)(bar.w*pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&fill);
- }else{
-  draw_text(c->renderer,c->font,ptxt,20,178,c->white);
-  draw_text(c->renderer,c->font,"Track-Gesamtzeit nicht verfuegbar",20,212,c->gray);
- }
-
+ }else{draw_text(c->renderer,c->font,ptxt,20,178,c->white);draw_text(c->renderer,c->font,"Track-Gesamtzeit nicht verfuegbar",20,212,c->gray);}
  if(*c->book_duration>0.0){
-  double book_pos=pos;
-  for(int i=0;i<*c->track_index;i++) book_pos+=c->track_durations[i];
-  if(book_pos<0)book_pos=0;if(book_pos>*c->book_duration)book_pos=*c->book_duration;
-  double book_pct=(book_pos/ *c->book_duration)*100.0;
-  char bp[32],bt[32],overall[128];
-  format_time(book_pos,bp,sizeof(bp));format_time(*c->book_duration,bt,sizeof(bt));
-  snprintf(overall,sizeof(overall),"Gesamt: %s / %s  (%.0f %%)",bp,bt,book_pct);
-  draw_text(c->renderer,c->font,overall,20,255,c->white);
-  SDL_Rect bbar={20,286,580,6};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bbar);
-  SDL_Rect bfill=bbar;bfill.w=(int)(bbar.w*book_pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&bfill);
- }else{
-  draw_text(c->renderer,c->font,"Hoerspiel-Gesamtzeit nicht verfuegbar",20,255,c->gray);
- }
-
- if(idle_timer_minutes>0 && c->idle_timer_remaining_ms){
-  Uint32 rem=*c->idle_timer_remaining_ms; char idle[64];
-  int mins=(int)(rem/60000), secs=(int)((rem/1000)%60);
-  int playing=(*c->music && !*c->paused && Mix_PlayingMusic());
-  snprintf(idle,sizeof(idle),playing?"Idle: %d:%02d (pausiert)":"Idle: %d:%02d",mins,secs);
-  draw_text(c->renderer,c->font,idle,20,320,c->gray);
- }
+  double book_pos=pos;for(int i=0;i<*c->track_index;i++)book_pos+=c->track_durations[i];if(book_pos<0)book_pos=0;if(book_pos>*c->book_duration)book_pos=*c->book_duration;
+  double book_pct=(book_pos/ *c->book_duration)*100.0;char bp[32],bt[32],overall[128];format_time(book_pos,bp,sizeof(bp));format_time(*c->book_duration,bt,sizeof(bt));
+  snprintf(overall,sizeof(overall),"Gesamt: %s / %s  (%.0f %%)",bp,bt,book_pct);draw_text(c->renderer,c->font,overall,20,255,c->white);
+  SDL_Rect bbar={20,286,580,6};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bbar);SDL_Rect bfill=bbar;bfill.w=(int)(bbar.w*book_pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&bfill);
+ }else{draw_text(c->renderer,c->font,"Hoerspiel-Gesamtzeit nicht verfuegbar",20,255,c->gray);}
+ if(idle_timer_minutes>0 && c->idle_timer_remaining_ms){Uint32 rem=*c->idle_timer_remaining_ms;char idle[64];int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);int playing=(*c->music && !*c->paused && Mix_PlayingMusic());snprintf(idle,sizeof(idle),playing?"Idle: %d:%02d (pausiert)":"Idle: %d:%02d",mins,secs);draw_text(c->renderer,c->font,idle,20,320,c->gray);}
  draw_text(c->renderer,c->font,*c->paused?"PAUSE":"Wiedergabe",20,350,c->white);
- draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: Display",20,390,c->gray);
+ draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: System   Y: Hoerspiele",20,390,c->gray);
  draw_text(c->renderer,c->font,"Hoch/Runter: +15s/-15s   Links/Rechts: Track -/+",20,420,c->gray);
 }
