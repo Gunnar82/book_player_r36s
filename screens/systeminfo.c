@@ -41,6 +41,20 @@ static void format_free_space(const char *path,char *out,size_t size){
     if(total>=1073741824ULL)snprintf(out,size,"%.1f GB frei / %.1f GB",freeb/1073741824.0,total/1073741824.0);
     else snprintf(out,size,"%.0f MB frei / %.0f MB",freeb/1048576.0,total/1048576.0);
 }
+static void format_audio_output(char *out,size_t size){
+    const char *driver=SDL_GetCurrentAudioDriver();
+    int count=SDL_GetNumAudioDevices(0);
+    const char *device=(count>0)?SDL_GetAudioDeviceName(0,0):NULL;
+
+    if(device&&device[0]&&driver&&driver[0])
+        snprintf(out,size,"%s (%s)",device,driver);
+    else if(device&&device[0])
+        snprintf(out,size,"%s",device);
+    else if(driver&&driver[0])
+        snprintf(out,size,"%s",driver);
+    else
+        snprintf(out,size,"--");
+}
 static int build_lines(ScreenContext *c,InfoLine *lines){
     int n=0;char buf[160];
     add_line(lines,&n,"SYSTEM","",1); snprintf(buf,sizeof(buf),"%s",APP_VERSION); add_line(lines,&n,"Version",buf,0); struct utsname u;
@@ -54,7 +68,8 @@ static int build_lines(ScreenContext *c,InfoLine *lines){
     add_line(lines,&n,"AKKU / AUDIO","",1);
     if(*c->battery_percent>=0)snprintf(buf,sizeof(buf),"%d %%",*c->battery_percent);else strcpy(buf,"--");add_line(lines,&n,"Akku",buf,0);
     add_line(lines,&n,"Ladezustand",*c->battery_charging==1?"Laedt":"Entlaedt",0);
-    snprintf(buf,sizeof(buf),"%d %%",(volume*100)/MIX_MAX_VOLUME);add_line(lines,&n,"Lautstaerke",buf,0);
+    snprintf(buf,sizeof(buf),"<  %d %%  >",(volume*100)/MIX_MAX_VOLUME);add_line(lines,&n,"Lautstaerke",buf,0);
+    format_audio_output(buf,sizeof(buf));add_line(lines,&n,"Audio-Ausgabe",buf,0);
     add_line(lines,&n,"Display",is_display_off()?"Aus":"An",0);
     int brightness=get_brightness_percent();
     if(brightness>=0)snprintf(buf,sizeof(buf),"<  %d %%  >",brightness);else strcpy(buf,"--");
@@ -95,11 +110,19 @@ static int build_lines(ScreenContext *c,InfoLine *lines){
     }
     return n;
 }
+static int find_volume_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Lautstaerke"))return i;return -1;}
 static int find_brightness_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Helligkeit"))return i;return -1;}
 static int find_sleep_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Sleeptimer"))return i;return -1;}
 static int find_idle_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Idle-Timer"))return i;return -1;}
 static int next_selectable(InfoLine *lines,int count,int from,int dir){int i=from+dir;while(i>=0&&i<count){if(!lines[i].heading)return i;i+=dir;}return from;}
 static void keep_visible(int count){int max=count-MAX_VISIBLE;if(max<0)max=0;if(selected_line<page_offset)page_offset=selected_line;if(selected_line>=page_offset+MAX_VISIBLE)page_offset=selected_line-MAX_VISIBLE+1;if(page_offset<0)page_offset=0;if(page_offset>max)page_offset=max;}
+static void change_volume(int delta){
+    volume += delta;
+    if(volume < 0) volume = 0;
+    if(volume > MIX_MAX_VOLUME) volume = MIX_MAX_VOLUME;
+    Mix_VolumeMusic(volume);
+    save_state();
+}
 static void change_brightness(int delta){int p=get_brightness_percent();if(p<0)return;p+=delta;if(p<10)p=10;if(p>100)p=100;set_brightness_percent(p);}
 static void edit_sleep_timer(ScreenContext *c,int delta){
     if(sleep_timer_edit_minutes < 0) sleep_timer_edit_minutes = *c->sleep_timer_minutes;
@@ -136,10 +159,13 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
         if(b==BUTTON_R2){selected_line=count-1;while(selected_line>0&&lines[selected_line].heading)selected_line--;keep_visible(count);return;}
         if(b==BUTTON_DPAD_UP){selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);return;}
         if(b==BUTTON_DPAD_DOWN){selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);return;}
+        int vl=find_volume_line(lines,count);
         int bl=find_brightness_line(lines,count);
         int sl=find_sleep_line(lines,count);
         int il=find_idle_line(lines,count);
         if(b==BUTTON_A&&selected_line==sl){confirm_sleep_timer(c);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==vl){change_volume(-VOLUME_STEP);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==vl){change_volume(VOLUME_STEP);return;}
         if(b==BUTTON_DPAD_LEFT&&selected_line==bl){change_brightness(-BRIGHTNESS_STEP);return;}
         if(b==BUTTON_DPAD_RIGHT&&selected_line==bl){change_brightness(BRIGHTNESS_STEP);return;}
         if(b==BUTTON_DPAD_LEFT&&selected_line==sl){edit_sleep_timer(c,-SLEEP_STEP_MINUTES);return;}
@@ -150,8 +176,9 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
     if(e->type==SDL_JOYAXISMOTION){
         if(e->jaxis.axis==AXIS_Y){if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);*c->axis_y_lock=1;}else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);*c->axis_y_lock=1;}if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_y_lock=0;}
         if(e->jaxis.axis==AXIS_X){
-            int bl=find_brightness_line(lines,count), sl=find_sleep_line(lines,count), il=find_idle_line(lines,count);
-            if(selected_line==bl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_brightness(-BRIGHTNESS_STEP);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_brightness(BRIGHTNESS_STEP);*c->axis_x_lock=1;}}
+            int vl=find_volume_line(lines,count), bl=find_brightness_line(lines,count), sl=find_sleep_line(lines,count), il=find_idle_line(lines,count);
+            if(selected_line==vl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_volume(-VOLUME_STEP);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_volume(VOLUME_STEP);*c->axis_x_lock=1;}}
+            else if(selected_line==bl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_brightness(-BRIGHTNESS_STEP);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_brightness(BRIGHTNESS_STEP);*c->axis_x_lock=1;}}
             else if(selected_line==sl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){edit_sleep_timer(c,-SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){edit_sleep_timer(c,SLEEP_STEP_MINUTES);*c->axis_x_lock=1;}}
             else if(selected_line==il){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_idle_timer(IDLE_TIMER_STEP_MINUTES);*c->axis_x_lock=1;}}
             if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;
