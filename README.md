@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.1.13**
+**0.1.14**
 
 ## Funktionen
 
@@ -19,6 +19,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Display-Backlight und Helligkeit
 - Akku-, CPU-, RAM- und Temperaturanzeige
 - Lautstärke, Audio-/ALSA-Ausgabe, LED-GPIO und LED-Test unter `Einstellungen`
+- Einstellungen sind sortiert: zuerst alle änderbaren Werte, danach System-/Statusinformationen, ganz unten GitHub und Kontakt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
 - USB-Mediatasten, Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
 
