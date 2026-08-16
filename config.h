@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #define APP_NAME "Hoerspiel Player"
-#define APP_VERSION "0.1.13"
+#define APP_VERSION "0.1.14"
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define MAX_BOOKS 200
@@ -74,10 +74,22 @@
 /* Idle-Timer: 0 = aus. Einstellung bleibt ueber Neustarts erhalten. */
 #define IDLE_TIMER_STEP_MINUTES 1
 #define IDLE_TIMER_MAX_MINUTES 360
+/*
+ * Blaue LED an GPIO0 (sysfs-Interface). Falls dein System einen
+ * anderen Namen verwendet, hier anpassen.
+ */
 /* Ab wie vielen verbleibenden Sekunden des Sleeptimers die LED blinkt. */
 #define LED_BLINK_THRESHOLD_SEC 60
 /* Blink-Geschwindigkeit (volle An/Aus-Periode) in Millisekunden. */
 #define LED_BLINK_PERIOD_MS 500
-#define BACKLIGHT_PATH "/sys/class/backlight/backlight/brightness"
-#define BACKLIGHT_MAX_PATH "/sys/class/backlight/backlight/max_brightness"
+/*
+ * Linux Backlight
+ *
+ * Falls dein System einen anderen Namen verwendet,
+ * diese beiden Pfade entsprechend anpassen.
+ */
+#define BACKLIGHT_PATH \
+    "/sys/class/backlight/backlight/brightness"
+#define BACKLIGHT_MAX_PATH \
+    "/sys/class/backlight/backlight/max_brightness"
 #endif /* CONFIG_H */
