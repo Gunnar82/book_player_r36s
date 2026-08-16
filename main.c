@@ -79,6 +79,7 @@ int main(int argc, char **argv)
     srand((unsigned int)time(NULL));
     setup_state_path();
     load_state();
+    load_playback_config();
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
@@ -219,6 +220,8 @@ int main(int argc, char **argv)
     int sleep_timer_active = 0;
     int sleep_timer_minutes = SLEEP_DEFAULT_MINUTES;
     Uint32 sleep_timer_end_ticks = 0;
+    int shutdown_tracks_remaining = shutdown_after_tracks;
+    int shutdown_tracks_setting_seen = shutdown_after_tracks;
 
     int locked = 0;
     int unlock_sequence[UNLOCK_SEQUENCE_LEN];
@@ -377,7 +380,9 @@ int main(int argc, char **argv)
                     if (!music && track_count > 0) {
                         music = play_track(tracks, track_index, base_position, &base_position, &started_ticks, &paused);
                         if (music) { duration = get_duration(music); last_save = SDL_GetTicks(); }
-                    } else if (music && paused) { Mix_ResumeMusic(); started_ticks = SDL_GetTicks(); paused = 0; }
+                    } else if (music && paused) {
+                        Mix_ResumeMusic(); started_ticks = SDL_GetTicks(); paused = 0;
+                    }
                     continue;
                 }
                 if (action == MEDIA_KEY_PAUSE) {
@@ -387,26 +392,86 @@ int main(int argc, char **argv)
                     }
                     continue;
                 }
-                if (action == MEDIA_KEY_STOP) {
-                    if (music) {
+                if(action == MEDIA_KEY_STOP) {
+                    if(music) {
                         base_position = get_position(base_position, started_ticks, paused);
                         int pi = ensure_book_progress(book_paths[book_index]);
-                        if (pi >= 0) { progress[pi].track = track_index; progress[pi].position = base_position; touch_book_progress(pi); }
-                        save_state(); Mix_HaltMusic(); Mix_FreeMusic(music); music = NULL; paused = 1; started_ticks = SDL_GetTicks();
+                        if(pi >= 0) {
+                            progress[pi].track = track_index;
+                            progress[pi].position = base_position;
+                            touch_book_progress(pi);
+                        }
+                        save_state();
+                        Mix_HaltMusic();
+                        Mix_FreeMusic(music);
+                        music = NULL;
+                        paused = 1;
+                        started_ticks = SDL_GetTicks();
                     }
                     continue;
                 }
             }
         }
 
+        /* ---------------- Automatischer Trackwechsel ---------------- */
         if (music && !paused && !Mix_PlayingMusic()) {
             int pi = ensure_book_progress(book_paths[book_index]);
-            if (pi >= 0) { progress[pi].track = track_index; progress[pi].position = 0.0; touch_book_progress(pi); }
-            track_index++; if (track_index >= track_count) track_index = 0;
-            double resume = 0.0;
-            if (pi >= 0 && progress[pi].track == track_index) resume = progress[pi].position;
+            int was_last_track = (track_index >= track_count - 1);
+
+            if (pi >= 0) {
+                progress[pi].track = track_index;
+                progress[pi].position = 0.0;
+                touch_book_progress(pi);
+            }
+
+            /* Sleep: nach N vollstaendig abgespielten Tracks herunterfahren. */
+            if (shutdown_after_tracks != shutdown_tracks_setting_seen) {
+                shutdown_tracks_setting_seen = shutdown_after_tracks;
+                shutdown_tracks_remaining = shutdown_after_tracks;
+            }
+            if (shutdown_tracks_remaining > 0) {
+                shutdown_tracks_remaining--;
+                if (shutdown_tracks_remaining == 0) {
+                    Mix_FreeMusic(music);
+                    music = NULL;
+                    do_shutdown(&music);
+                    running = 0;
+                    continue;
+                }
+            }
+
+            if (was_last_track) {
+                /* Sleep am Hoerspielende hat Vorrang vor Wiederholen. */
+                if (shutdown_at_book_end) {
+                    Mix_FreeMusic(music);
+                    music = NULL;
+                    do_shutdown(&music);
+                    running = 0;
+                    continue;
+                }
+
+                if (!repeat_book) {
+                    Mix_FreeMusic(music);
+                    music = NULL;
+                    base_position = 0.0;
+                    paused = 1;
+                    if (pi >= 0) {
+                        progress[pi].track = track_count - 1;
+                        progress[pi].position = track_durations[track_count - 1];
+                        touch_book_progress(pi);
+                        save_state();
+                    }
+                    continue;
+                }
+
+                track_index = 0;
+            } else {
+                track_index++;
+            }
+
             Mix_FreeMusic(music);
-            music = play_track(tracks, track_index, resume, &base_position, &started_ticks, &paused);
+            music = play_track(tracks, track_index, 0.0,
+                                &base_position, &started_ticks, &paused);
             if (music) duration = get_duration(music);
         }
 
@@ -417,54 +482,70 @@ int main(int argc, char **argv)
                 progress[pi].position = get_position(base_position, started_ticks, paused);
                 touch_book_progress(pi);
             }
-            save_state(); last_save = SDL_GetTicks();
+            save_state();
+            last_save = SDL_GetTicks();
+        }
+
+        if (idle_timer_minutes != idle_setting_seen) {
+            idle_setting_seen = idle_timer_minutes;
+            idle_timer_remaining_ms = idle_timer_minutes > 0 ? (Uint32)idle_timer_minutes * 60000U : 0U;
+            idle_timer_last_tick = SDL_GetTicks();
         }
 
         {
             Uint32 now = SDL_GetTicks();
-            if (idle_timer_minutes != idle_setting_seen) {
-                idle_setting_seen = idle_timer_minutes;
-                idle_timer_remaining_ms = idle_timer_minutes > 0 ? (Uint32)idle_timer_minutes * 60000U : 0U;
-                idle_timer_last_tick = now;
-            }
             if (idle_timer_minutes <= 0) {
-                idle_timer_remaining_ms = 0; idle_timer_last_tick = now;
+                idle_timer_remaining_ms = 0;
+                idle_timer_last_tick = now;
             } else if (music && !paused && Mix_PlayingMusic()) {
                 idle_timer_last_tick = now;
             } else {
                 Uint32 elapsed = now - idle_timer_last_tick;
                 idle_timer_last_tick = now;
                 if (elapsed >= idle_timer_remaining_ms) {
-                    idle_timer_remaining_ms = 0; do_shutdown(&music); running = 0;
-                } else idle_timer_remaining_ms -= elapsed;
+                    idle_timer_remaining_ms = 0;
+                    do_shutdown(&music);
+                    running = 0;
+                } else {
+                    idle_timer_remaining_ms -= elapsed;
+                }
             }
         }
 
-        if (sleep_timer_active && SDL_GetTicks() >= sleep_timer_end_ticks) { do_shutdown(&music); running = 0; }
+        if (sleep_timer_active && SDL_GetTicks() >= sleep_timer_end_ticks) {
+            do_shutdown(&music);
+            running = 0;
+        }
 
         if (sleep_timer_active) {
             Uint32 now = SDL_GetTicks();
-            Uint32 remaining_ms = sleep_timer_end_ticks > now ? sleep_timer_end_ticks - now : 0;
-            if (remaining_ms <= (Uint32)(LED_BLINK_THRESHOLD_SEC * 1000)) {
-                int blink_on = (now / (LED_BLINK_PERIOD_MS / 2)) % 2; led_set(blink_on);
-            } else led_set(0);
-        } else led_set(0);
-
-        if (!is_display_off() && SDL_GetTicks() - last_activity >= DISPLAY_TIMEOUT_MS) set_display_off(1);
-
-        if (SDL_GetTicks() - last_systemstats_check >= 1000) {
-            cpu_usage = get_cpu_usage(); ram_usage = get_ram_usage(); cpu_temperature = get_cpu_temperature();
-            last_systemstats_check = SDL_GetTicks();
+            Uint32 rem = sleep_timer_end_ticks > now ? sleep_timer_end_ticks - now : 0;
+            if (rem <= LED_BLINK_THRESHOLD_SEC * 1000U) {
+                int blink_on = ((now / (LED_BLINK_PERIOD_MS / 2)) % 2) == 0;
+                led_set(blink_on);
+            } else {
+                led_set(0);
+            }
+        } else {
+            led_set(0);
         }
-        if (SDL_GetTicks() - last_battery_check >= 10000) {
-            battery_percent = get_battery_percent(); battery_charging = is_battery_charging();
+
+        if (SDL_GetTicks() - last_battery_check >= 5000) {
+            battery_percent = get_battery_percent();
+            battery_charging = is_battery_charging();
             last_battery_check = SDL_GetTicks();
         }
+        if (SDL_GetTicks() - last_systemstats_check >= 2000) {
+            cpu_usage = get_cpu_usage();
+            ram_usage = get_ram_usage();
+            cpu_temperature = get_cpu_temperature();
+            last_systemstats_check = SDL_GetTicks();
+        }
 
-        SDL_SetRenderDrawColor(renderer, 20,20,30,255);
+        SDL_SetRenderDrawColor(renderer, 15,15,20,255);
         SDL_RenderClear(renderer);
 
-        ScreenContext render_ctx = {
+        ScreenContext screen_ctx = {
             renderer, font, white, selected, gray,
             &screen, &running, &book_index, &track_index,
             &book_count, &track_count, book_names, book_paths, tracks,
@@ -478,79 +559,38 @@ int main(int argc, char **argv)
             &idle_timer_remaining_ms, do_shutdown
         };
 
-        switch (screen) {
-            case SCREEN_MENU: menu_render(&render_ctx); break;
-            case SCREEN_TRACKS: tracks_render(&render_ctx); break;
-            case SCREEN_PLAYER: player_render(&render_ctx); break;
-            case SCREEN_SLEEP_TIMER: sleeptimer_render(&render_ctx); break;
-            case SCREEN_SYSTEM_INFO: systeminfo_render(&render_ctx); break;
-            case SCREEN_BUTTON_DEBUG: buttondebug_render(&render_ctx); break;
-        }
-
-        if (sleep_timer_active) {
-            Uint32 now = SDL_GetTicks();
-            Uint32 remaining_ms = sleep_timer_end_ticks > now ? sleep_timer_end_ticks - now : 0;
-            int rem_min = (int)(remaining_ms / 60000);
-            int rem_sec = (int)((remaining_ms / 1000) % 60);
-            char sleep_status[32];
-            snprintf(sleep_status, sizeof(sleep_status), "Sleep %d:%02d", rem_min, rem_sec);
-            draw_text_right(renderer, font, sleep_status, SCREEN_W - 250, 20, gray);
-        }
-        {
-            char volume_text[32];
-            snprintf(volume_text, sizeof(volume_text), "Vol %d%%", (volume * 100) / MIX_MAX_VOLUME);
-            draw_text_right(renderer, font, volume_text, SCREEN_W - 115, 20, gray);
-        }
-        if (battery_percent >= 0) {
-            char batt_text[16];
-            snprintf(batt_text, sizeof(batt_text), "%d%%", battery_percent);
-            SDL_Color batt_color;
-            if (battery_charging == 1) batt_color = (SDL_Color){90,160,240,255};
-            else {
-                batt_color = white;
-                if (battery_percent <= 15) batt_color = (SDL_Color){230,80,80,255};
-                else if (battery_percent <= 30) batt_color = (SDL_Color){230,180,60,255};
-            }
-            draw_text_right(renderer, font, batt_text, SCREEN_W - 20, 20, batt_color);
-        }
-
         if (locked) {
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-            SDL_SetRenderDrawColor(renderer, 0,0,0,170);
-            SDL_Rect dim = {0,0,SCREEN_W,SCREEN_H}; SDL_RenderFillRect(renderer,&dim);
-            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-            draw_text(renderer,font,"Tastensperre aktiv",20,20,selected);
-            int flashing = SDL_GetTicks() < unlock_wrong_flash_until;
-            const char *hint = flashing ? "Falsche Taste - von vorn beginnen" : "Zum Entsperren die angezeigte Tastenfolge druecken:";
-            SDL_Color hint_color = flashing ? (SDL_Color){230,80,80,255} : white;
-            draw_text(renderer,font,hint,20,60,hint_color);
-            int lx=20, ly=100;
-            for (int i=0;i<UNLOCK_SEQUENCE_LEN;i++) {
-                SDL_Color c = flashing ? (SDL_Color){230,80,80,255} : (i < unlock_progress ? selected : gray);
-                draw_text(renderer,font,button_name(unlock_sequence[i]),lx,ly,c); lx += 70;
+            draw_text(renderer,font,"Tastensperre",20,40,selected);
+            draw_text(renderer,font,"Zum Entsperren:",20,100,white);
+            int x=20;
+            for(int i=0;i<UNLOCK_SEQUENCE_LEN;i++) {
+                const char *name=button_name(unlock_sequence[i]);
+                SDL_Color col=i<unlock_progress?selected:white;
+                draw_text(renderer,font,name,x,150,col);
+                x+=70;
+            }
+            if(SDL_GetTicks()<unlock_wrong_flash_until)
+                draw_text(renderer,font,"Falsche Taste",20,210,gray);
+        } else {
+            switch(screen) {
+                case SCREEN_MENU: menu_render(&screen_ctx); break;
+                case SCREEN_TRACKS: tracks_render(&screen_ctx); break;
+                case SCREEN_PLAYER: player_render(&screen_ctx); break;
+                case SCREEN_SLEEP_TIMER: sleeptimer_render(&screen_ctx); break;
+                case SCREEN_SYSTEM_INFO: systeminfo_render(&screen_ctx); break;
+                case SCREEN_BUTTON_DEBUG: buttondebug_render(&screen_ctx); break;
             }
         }
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        SDL_Delay(10);
     }
 
-    if (music) {
-        int pi = ensure_book_progress(book_paths[book_index]);
-        if (pi >= 0) {
-            progress[pi].track = track_index;
-            progress[pi].position = get_position(base_position, started_ticks, paused);
-            touch_book_progress(pi);
-        }
-        Mix_HaltMusic(); Mix_FreeMusic(music);
-    }
-
-    set_display_off(0);
-    led_set(0);
     save_state();
     media_keys_close(&media_keys);
-    if (font) TTF_CloseFont(font);
+    if (music) { Mix_HaltMusic(); Mix_FreeMusic(music); }
     if (joy) SDL_JoystickClose(joy);
+    if (font) TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     Mix_CloseAudio();
