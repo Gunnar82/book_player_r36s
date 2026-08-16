@@ -1,6 +1,6 @@
 # book_player_r36s
 
-Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
+Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
@@ -42,6 +42,29 @@ path=/mnt/usbdrive/hoerspiele
 ```
 
 Weitere `path=`-Einträge können ergänzt werden.
+
+## Systemberechtigungen
+
+### Herunterfahren ohne Passwortabfrage
+
+Damit der Player das Gerät über den Menüpunkt `Herunterfahren` ohne interaktive Passwortabfrage ausschalten kann, benötigt der Benutzer `ark` eine gezielt eingeschränkte `sudo`-Freigabe für `poweroff`.
+
+Die Regel sollte mit `visudo` angelegt werden, zum Beispiel als `/etc/sudoers.d/hoerspiel-player`:
+
+```sudoers
+ark ALL=(root) NOPASSWD: /usr/sbin/poweroff
+```
+
+Anschließend die Datei auf sichere sudoers-Rechte setzen:
+
+```sh
+sudo chmod 0440 /etc/sudoers.d/hoerspiel-player
+sudo visudo -cf /etc/sudoers.d/hoerspiel-player
+```
+
+Falls `poweroff` auf dem verwendeten System an einem anderen Pfad liegt, muss in der sudoers-Regel exakt der von `command -v poweroff` ausgegebene Pfad verwendet werden. Es sollte ausdrücklich **nicht** `NOPASSWD: ALL` vergeben werden.
+
+Die GPIO-/udev-Konfiguration wird separat behandelt, da sich die verwendeten GPIO-Nummern zwischen R36S/R26S-Varianten unterscheiden können.
 
 ## USB-Netzwerk-Tools
 
