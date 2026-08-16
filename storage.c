@@ -146,7 +146,11 @@ int save_playback_config(void)
                 shutdown_at_book_end ? 1 : 0);
     }
 
-    fclose(fp);
+    if (fflush(fp) != 0 || fsync(fileno(fp)) != 0) {
+        fclose(fp);
+        goto fail;
+    }
+    if (fclose(fp) != 0) goto fail;
     for (size_t i = 0; i < count; i++) free(lines[i]);
     free(lines);
     return 0;
