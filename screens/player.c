@@ -61,9 +61,9 @@ void player_render(ScreenContext *c){
  draw_text(c->renderer,c->font,c->tracks[*c->track_index].name,20,100,c->selected);
  char tr[64];snprintf(tr,sizeof(tr),"Track %d / %d",*c->track_index+1,*c->track_count);draw_text(c->renderer,c->font,tr,20,142,c->white);
  if(*c->duration>0){
-  char total[32],time[100],pc[32];format_time(*c->duration,total,sizeof(total));
-  snprintf(time,sizeof(time),"Track: %s / %s",ptxt,total);snprintf(pc,sizeof(pc),"%.0f %%",pct);
-  draw_text(c->renderer,c->font,time,20,178,c->white);draw_text_right(c->renderer,c->font,pc,600,178,c->white);
+  char total[32],time[128];format_time(*c->duration,total,sizeof(total));
+  snprintf(time,sizeof(time),"Track: %s / %s  (%.0f %%)",ptxt,total,pct);
+  draw_text(c->renderer,c->font,time,20,178,c->white);
   SDL_Rect bar={20,212,580,10};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bar);
   SDL_Rect fill=bar;fill.w=(int)(bar.w*pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&fill);
  }else{draw_text(c->renderer,c->font,ptxt,20,178,c->white);draw_text(c->renderer,c->font,"Track-Gesamtzeit nicht verfuegbar",20,212,c->gray);}
