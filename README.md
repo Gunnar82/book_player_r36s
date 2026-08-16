@@ -1,10 +1,12 @@
 # book_player_r36s
 
+> Entwicklung von 0.2 erfolgt im Branch `develop-0.2`. Der stabile 0.1-Stand bleibt auf `main`.
+
 Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.1.14**
+**0.2.0-dev1**
 
 ## Funktionen
 
@@ -31,7 +33,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 ## Steuerung
 
 - `Y`: Hörspielauswahl
-- `X`: Systemmenü mit Einstellungen, Button Debug, Beenden und Herunterfahren
+- `X`: Systemmenü mit Einstellungen, Downloads, Button Debug, Beenden und Herunterfahren
 - `MID` (`EV_KEY 708`): Display an/aus
 - Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
 
@@ -98,6 +100,37 @@ Falls `poweroff` an einem anderen Pfad liegt, muss die sudoers-Regel entsprechen
 
 Die Skripte `USB-Network-Start.sh`, `USB-Network-Stop.sh` und `r36s-usb-ssh-dhcp-server.sh` müssen unter `/roms/tools/` liegen.
 
-## Build
+## 0.2: Downloads aus nginx XML-Listings
 
-Das Repository enthält ein Dockerfile für ARMv7. Benötigt werden SDL2, SDL2_mixer, SDL2_ttf und gcc.
+0.2 fügt einen lokalen Download-Browser hinzu. Online-Wiedergabe ist bewusst nicht vorgesehen: Dateien werden vollständig heruntergeladen und danach lokal verwendet.
+
+Downloads sind standardmäßig deaktiviert. Unter `Einstellungen` kann `Downloads` persistent auf `An` gestellt werden. Nur dann ist der Punkt `Downloads` im Systemmenü aktiv. Das Aktivieren selbst führt noch keinen Netzwerkzugriff aus; erst das Öffnen des Download-Menüs fragt die konfigurierte URL ab.
+
+Konfiguration:
+
+```ini
+[download]
+enabled=0
+base_url=https://example.org/hoerspiele/
+target_path=/roms/hoerspiele
+verify_peer=1
+verify_host=1
+ca_cert=
+client_cert=
+client_key=
+client_key_password=
+```
+
+`base_url` darf HTTP oder HTTPS verwenden. Bei HTTPS sind Zertifikats- und Hostprüfung standardmäßig aktiv. `ca_cert` kann auf eine eigene CA-Datei zeigen. Für mTLS können optional `client_cert` und `client_key` gesetzt werden; `client_key_password` ist nur erforderlich, wenn der private Key verschlüsselt ist.
+
+Der Browser erwartet das nginx-XML-Listing mit `<list>`, `<directory>` und `<file>` Einträgen. Verzeichnis- und Dateinamen werden für URLs percent-encoded, damit Leerzeichen und UTF-8-Namen funktionieren.
+
+Ein Verzeichnis mit Dateien bietet `[Ordner herunterladen]`. Downloads werden zuerst als `.part` gespeichert und erst nach erfolgreichem Abschluss auf den eigentlichen Dateinamen umbenannt. `B` kann einen laufenden Download abbrechen. Nach einem erfolgreichen Download ist derzeit ein Neustart des Players nötig, damit die neu geladenen Hörspiele in die lokale Bibliothek eingelesen werden.
+
+### Entwicklungszweig / Patch-Stack
+
+`develop-0.2` basiert weiterhin auf dem stabilen 0.1.14-Quellstand. Die ersten 0.2-Änderungen liegen unter `patches/` als kleiner Patch-Stack. Das Dockerfile wendet diese Patches vor dem Build automatisch an. Im bereitgestellten 0.2-Download-ZIP sind die Änderungen bereits direkt in die Quelldateien eingearbeitet.
+
+### Build-Abhängigkeit
+
+0.2 benötigt zusätzlich `libcurl` mit TLS-Unterstützung. Das Dockerfile installiert `libcurl4-openssl-dev`, `ca-certificates` und `patch`.
