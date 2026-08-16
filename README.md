@@ -4,21 +4,21 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.1.9**
+**0.1.10**
 
 ## Funktionen
 
 - Hörspiel- und Trackauswahl mit Resume
 - mehrere konfigurierbare Speicherpfade über `config.ini`
 - verschachtelte Hörspielordner mit `↵ Zurueck`
-- Wiedergabe-, Track- und Gesamtfortschritt
+- Wiedergabe-, Track- und Gesamtfortschritt mit Prozentanzeige im Fließtext
 - Sleep- und Idle-Timer
 - Display-Backlight und Helligkeit
 - Akku-, CPU-, RAM- und Temperaturanzeige
-- Lautstärke im System-Menü einstellbar
-- Audio-/ALSA-Ausgabe im System-Menü sichtbar, sofern ermittelbar
-- LED-GPIO automatisch ermitteln und im System-Menü manuell überschreiben
-- LED-Test im System-Menü
+- Lautstärke unter `Einstellungen` einstellbar
+- Audio-/ALSA-Ausgabe unter `Einstellungen` sichtbar, sofern ermittelbar
+- LED-GPIO automatisch ermitteln und unter `Einstellungen` manuell überschreiben
+- LED-Test unter `Einstellungen` mit 0,5-Sekunden-Blinktakt
 - USB-Mediatasten
 - Button-Debug über Linux-Input-Events
 - D-Pad, Analogstick und Shoulder-Button-Navigation
@@ -26,7 +26,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 ## Steuerung
 
 - `Y`: Hörspielauswahl
-- `X`: Systemmenü mit System, Button Debug, Beenden und Herunterfahren
+- `X`: Systemmenü mit Einstellungen, Button Debug, Beenden und Herunterfahren
 - `MID` (`EV_KEY 708`): Display an/aus
 - Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
 
@@ -47,7 +47,7 @@ led_gpio=-1
 led_gpio_mode=auto
 ```
 
-`led_gpio=-1` bedeutet: Beim ersten Start versucht der Player, unter den bereits exportierten Sysfs-GPIOs einen eindeutigen Ausgang zu erkennen. Wird genau einer gefunden, wird dessen Nummer in `config.ini` gespeichert. Im System-Menü kann `LED GPIO` anschließend mit Links/Rechts manuell geändert werden; die Änderung wird sofort als `manual` gespeichert. Mit `A` auf dem Eintrag wird die automatische Erkennung erneut ausgeführt.
+`led_gpio=-1` bedeutet: Beim ersten Start versucht der Player, unter den bereits exportierten Sysfs-GPIOs einen eindeutigen Ausgang zu erkennen. Wird genau einer gefunden, wird dessen Nummer in `config.ini` gespeichert. Unter `Einstellungen` kann `LED GPIO` anschließend mit Links/Rechts manuell geändert werden; die Änderung wird sofort als `manual` gespeichert. Mit `A` auf dem Eintrag wird die automatische Erkennung erneut ausgeführt.
 
 ## Systemberechtigungen
 
