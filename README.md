@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.1.10**
+**0.1.11**
 
 ## Funktionen
 
@@ -12,7 +12,10 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - mehrere konfigurierbare Speicherpfade über `config.ini`
 - verschachtelte Hörspielordner mit `↵ Zurueck`
 - Wiedergabe-, Track- und Gesamtfortschritt mit Prozentanzeige im Fließtext
+- standardmäßig Stop am Ende des Hörspiels, optional Wiederholung von vorn
 - Sleep- und Idle-Timer
+- optionales Herunterfahren nach N vollständig abgespielten Tracks
+- optionales Herunterfahren am Ende des Hörspiels
 - Display-Backlight und Helligkeit
 - Akku-, CPU-, RAM- und Temperaturanzeige
 - Lautstärke unter `Einstellungen` einstellbar
@@ -45,7 +48,18 @@ path=/mnt/usbdrive/hoerspiele
 [hardware]
 led_gpio=-1
 led_gpio_mode=auto
+
+[playback]
+repeat_book=0
+shutdown_after_tracks=0
+shutdown_at_book_end=0
 ```
+
+`repeat_book=0` ist der Standard: Nach dem letzten Track endet das Hörspiel. Mit `repeat_book=1` beginnt es nach dem letzten Track wieder bei Track 1.
+
+`shutdown_after_tracks=0` deaktiviert den trackbasierten Sleep-Modus. Ein Wert größer 0 fährt das Gerät nach dieser Anzahl vollständig abgespielter Tracks herunter.
+
+`shutdown_at_book_end=1` fährt das Gerät nach dem letzten Track des Hörspiels herunter. Diese Option hat Vorrang vor `repeat_book`.
 
 `led_gpio=-1` bedeutet: Beim ersten Start versucht der Player, unter den bereits exportierten Sysfs-GPIOs einen eindeutigen Ausgang zu erkennen. Wird genau einer gefunden, wird dessen Nummer in `config.ini` gespeichert. Unter `Einstellungen` kann `LED GPIO` anschließend mit Links/Rechts manuell geändert werden; die Änderung wird sofort als `manual` gespeichert. Mit `A` auf dem Eintrag wird die automatische Erkennung erneut ausgeführt.
 
