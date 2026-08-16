@@ -4,7 +4,7 @@
 
 static int selection = 0;
 static const char *items[] = {
-    "System",
+    "Einstellungen",
     "Button Debug",
     "Beenden",
     "Herunterfahren"
