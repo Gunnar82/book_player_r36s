@@ -53,7 +53,7 @@ led_gpio_mode=auto
 
 ### GPIO-Zugriff für die LED
 
-Die exportierten Sysfs-GPIO-Dateien gehören standardmäßig `root:root` und sind für den Benutzer `ark` nicht beschreibbar. Der Player verwendet deshalb eine eigene Gruppe `gpio` und eine udev-Regel, die exportierte GPIO-Ausgänge für diese Gruppe schreibbar macht.
+Die exportierten Sysfs-GPIO-Dateien gehören standardmäßig `root:root` und sind für den Benutzer `ark` nicht beschreibbar. Der Player verwendet deshalb eine eigene Gruppe `gpio` und eine udev-Regel, die die `value`-Dateien exportierter GPIOs für diese Gruppe schreibbar macht.
 
 Gruppe anlegen und `ark` hinzufügen:
 
@@ -65,9 +65,10 @@ sudo usermod -aG gpio ark
 Danach die Datei `/etc/udev/rules.d/99-gpio-led.rules` mit folgendem Inhalt anlegen:
 
 ```udev
-SUBSYSTEM=="gpio", KERNEL=="gpio[0-9]*", ACTION=="add", \
-RUN+="/bin/sh -c 'if [ -f /sys%p/direction ] && grep -q ^out /sys%p/direction; then chown root:gpio /sys%p/value; chmod 0660 /sys%p/value; fi'"
+SUBSYSTEM=="gpio", KERNEL=="gpio[0-9]*", ACTION=="add", RUN+="/bin/chown root:gpio /sys%p/value", RUN+="/bin/chmod 0660 /sys%p/value"
 ```
+
+Diese einfache Variante wurde gewählt, weil die vorherige zusätzliche Prüfung auf `direction=out` beim normalen Boot auf dem getesteten System nicht zuverlässig griff, obwohl sie bei einem manuellen `udevadm trigger` funktionierte.
 
 Die Regeldatei selbst darf nicht ausführbar sein:
 
@@ -107,7 +108,7 @@ sleep 1
 echo 1 | tee /sys/class/gpio/gpio77/value
 ```
 
-Die udev-Regel ist absichtlich nicht auf GPIO 77 festgelegt. Unterschiedliche DTBs bzw. Gerätevarianten können die LED unter einer anderen GPIO-Nummer bereitstellen. Die Regel berücksichtigt exportierte GPIOs mit `direction=out`; Eingänge wie eine Headphone-Detection werden dadurch nicht für Schreibzugriffe freigegeben.
+Die udev-Regel ist absichtlich nicht auf GPIO 77 festgelegt. Unterschiedliche DTBs bzw. Gerätevarianten können die LED unter einer anderen GPIO-Nummer bereitstellen. Die Regel gibt nur die jeweilige `value`-Datei für die Gruppe `gpio` frei; `direction`, `export` und `unexport` werden nicht freigegeben.
 
 Zum Debuggen einer Regel kann beispielsweise verwendet werden:
 
