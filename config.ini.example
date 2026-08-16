@@ -11,3 +11,11 @@ path=/mnt/usbdrive/hoerspiele
 # -1 = automatische Erkennung beim ersten Start
 led_gpio=-1
 led_gpio_mode=auto
+
+[playback]
+# 0 = am Ende stoppen, 1 = Hoerspiel von vorn beginnen
+repeat_book=0
+# 0 = aus, sonst Shutdown nach N vollstaendig abgespielten Tracks
+shutdown_after_tracks=0
+# 0 = aus, 1 = nach Ende des Hoerspiels herunterfahren
+shutdown_at_book_end=0
