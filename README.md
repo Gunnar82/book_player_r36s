@@ -1,10 +1,10 @@
 # book_player_r36s
 
-Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
+Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.1.7**
+**0.1.8**
 
 ## Funktionen
 
@@ -16,7 +16,8 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Display-Backlight und Helligkeit
 - Akku-, CPU-, RAM- und Temperaturanzeige
 - Lautstärke im System-Menü einstellbar
-- Audio-Ausgabe im System-Menü sichtbar, sofern SDL sie ermitteln kann
+- Audio-/ALSA-Ausgabe im System-Menü sichtbar, sofern ermittelbar
+- LED-GPIO automatisch ermitteln und im System-Menü manuell überschreiben
 - USB-Mediatasten
 - Button-Debug über Linux-Input-Events
 - D-Pad, Analogstick und Shoulder-Button-Navigation
@@ -39,9 +40,15 @@ Beispiel:
 path=/roms/hoerspiele
 path=/roms2/hoerspiele
 path=/mnt/usbdrive/hoerspiele
+
+[hardware]
+led_gpio=-1
+led_gpio_mode=auto
 ```
 
-Weitere `path=`-Einträge können ergänzt werden.
+`led_gpio=-1` bedeutet: Beim ersten Start versucht der Player, unter den bereits exportierten Sysfs-GPIOs einen eindeutigen Ausgang zu erkennen. Wird genau einer gefunden, wird dessen Nummer in `config.ini` gespeichert. Im System-Menü kann `LED GPIO` anschließend mit Links/Rechts manuell geändert werden; die Änderung wird sofort als `manual` gespeichert. Mit `A` auf dem Eintrag wird die automatische Erkennung erneut ausgeführt.
+
+Die GPIO-Berechtigungen für den Benutzer `ark` werden separat eingerichtet und sind nicht Bestandteil der automatischen Erkennung.
 
 ## Systemberechtigungen
 
@@ -55,7 +62,7 @@ Die Regel sollte mit `visudo` angelegt werden, zum Beispiel als `/etc/sudoers.d/
 ark ALL=(root) NOPASSWD: /usr/sbin/poweroff
 ```
 
-Anschließend die Datei auf sichere sudoers-Rechte setzen:
+Anschließend:
 
 ```sh
 sudo chmod 0440 /etc/sudoers.d/hoerspiel-player
@@ -64,32 +71,17 @@ sudo visudo -cf /etc/sudoers.d/hoerspiel-player
 
 Falls `poweroff` auf dem verwendeten System an einem anderen Pfad liegt, muss in der sudoers-Regel exakt der von `command -v poweroff` ausgegebene Pfad verwendet werden. Es sollte ausdrücklich **nicht** `NOPASSWD: ALL` vergeben werden.
 
-Die GPIO-/udev-Konfiguration wird separat behandelt, da sich die verwendeten GPIO-Nummern zwischen R36S/R26S-Varianten unterscheiden können.
-
 ## USB-Netzwerk-Tools
 
-Die USB-Netzwerk-Skripte aus `scripts/` sind für die Verwendung durch DarkOS auf dem R36S vorgesehen.
-
-Auf dem Gerät müssen sie unter folgendem Pfad abgelegt werden:
-
-```text
-/roms/tools/
-```
-
-Die beiden DarkOS-/EmulationStation-Starter heißen:
+Die USB-Netzwerk-Skripte aus `scripts/` sind für die Verwendung durch DarkOS auf dem R36S vorgesehen und müssen auf dem Gerät unter `/roms/tools/` liegen:
 
 ```text
 USB-Network-Start.sh
 USB-Network-Stop.sh
-```
-
-Beide Starter erwarten die Hauptdatei
-
-```text
 r36s-usb-ssh-dhcp-server.sh
 ```
 
-im selben Verzeichnis. Auf dem R36S sollten daher alle drei Dateien gemeinsam unter `/roms/tools/` liegen. `USB-Network-Start.sh` ruft die Hauptdatei mit `start`, `USB-Network-Stop.sh` mit `stop` auf. Die Hauptdatei unterstützt zusätzlich `restart`, `status` und ohne Parameter den Toggle-Modus.
+`USB-Network-Start.sh` ruft die Hauptdatei mit `start`, `USB-Network-Stop.sh` mit `stop` auf. Die Hauptdatei unterstützt zusätzlich `restart`, `status` und ohne Parameter den Toggle-Modus.
 
 ## Build
 
