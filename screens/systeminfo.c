@@ -47,70 +47,159 @@ static void format_alsa_device(char *out,size_t size){
     char line[256];
     int card=-1;
     char card_name[128]="";
+
     if(fp){
         while(fgets(line,sizeof(line),fp)){
-            int n; char name[128];
-            if(sscanf(line," %d [%127[^]]", &n, name)==2){card=n;snprintf(card_name,sizeof(card_name),"%s",name);break;}
+            int n;
+            char name[128];
+            if(sscanf(line," %d [%127[^]]", &n, name)==2){
+                card=n;
+                snprintf(card_name,sizeof(card_name),"%s",name);
+                break;
+            }
         }
         fclose(fp);
     }
+
     if(card>=0){
-        if(card_name[0])snprintf(out,size,"hw:%d,0  %s",card,card_name);else snprintf(out,size,"hw:%d,0",card);
+        if(card_name[0])
+            snprintf(out,size,"hw:%d,0  %s",card,card_name);
+        else
+            snprintf(out,size,"hw:%d,0",card);
         return;
     }
+
     fp=fopen("/proc/asound/pcm","r");
     if(fp){
         while(fgets(line,sizeof(line),fp)){
             int c,d;
-            if(sscanf(line,"%d-%d:",&c,&d)==2){snprintf(out,size,"hw:%d,%d",c,d);fclose(fp);return;}
+            if(sscanf(line,"%d-%d:",&c,&d)==2){
+                snprintf(out,size,"hw:%d,%d",c,d);
+                fclose(fp);
+                return;
+            }
         }
         fclose(fp);
     }
+
     snprintf(out,size,"--");
 }
+
 static void format_audio_output(char *out,size_t size){
     const char *driver=SDL_GetCurrentAudioDriver();
     int count=SDL_GetNumAudioDevices(0);
     const char *device=(count>0)?SDL_GetAudioDeviceName(0,0):NULL;
-    if(device&&device[0]&&driver&&driver[0])snprintf(out,size,"%s (%s)",device,driver);
-    else if(device&&device[0])snprintf(out,size,"%s",device);
-    else if(driver&&driver[0])snprintf(out,size,"%s",driver);
-    else snprintf(out,size,"--");
+
+    if(device&&device[0]&&driver&&driver[0])
+        snprintf(out,size,"%s (%s)",device,driver);
+    else if(device&&device[0])
+        snprintf(out,size,"%s",device);
+    else if(driver&&driver[0])
+        snprintf(out,size,"%s",driver);
+    else
+        snprintf(out,size,"--");
 }
 static int build_lines(ScreenContext *c,InfoLine *lines){
     int n=0;char buf[160];
-    add_line(lines,&n,"SYSTEM","",1); snprintf(buf,sizeof(buf),"%s",APP_VERSION); add_line(lines,&n,"Version",buf,0); add_line(lines,&n,"GitHub","github.com/Gunnar82/book_player_r36s",0); add_line(lines,&n,"Kontakt","gunnar_82@hotmail.com",0); struct utsname u;
-    if(uname(&u)==0){add_line(lines,&n,"Kernel",u.release,0);add_line(lines,&n,"Architektur",u.machine,0);add_line(lines,&n,"Hostname",u.nodename,0);}
-    format_uptime(buf,sizeof(buf));add_line(lines,&n,"Uptime",buf,0);
-    add_line(lines,&n,"LEISTUNG","",1);
-    if(*c->cpu_usage>=0)snprintf(buf,sizeof(buf),"%.0f %%",*c->cpu_usage);else strcpy(buf,"--");add_line(lines,&n,"CPU",buf,0);
-    if(*c->cpu_temperature>=0)snprintf(buf,sizeof(buf),"%.1f °C",*c->cpu_temperature);else strcpy(buf,"--");add_line(lines,&n,"CPU-Temperatur",buf,0);
-    format_memory(buf,sizeof(buf));add_line(lines,&n,"RAM",buf,0);
-    if(*c->ram_usage>=0)snprintf(buf,sizeof(buf),"%.0f %%",*c->ram_usage);else strcpy(buf,"--");add_line(lines,&n,"RAM-Auslastung",buf,0);
-    add_line(lines,&n,"AKKU / AUDIO","",1);
-    if(*c->battery_percent>=0)snprintf(buf,sizeof(buf),"%d %%",*c->battery_percent);else strcpy(buf,"--");add_line(lines,&n,"Akku",buf,0);
-    add_line(lines,&n,"Ladezustand",*c->battery_charging==1?"Laedt":"Entlaedt",0);
-    snprintf(buf,sizeof(buf),"<  %d %%  >",(volume*100)/MIX_MAX_VOLUME);add_line(lines,&n,"Lautstaerke",buf,0);
-    format_audio_output(buf,sizeof(buf));add_line(lines,&n,"Audio-Ausgabe",buf,0);
-    format_alsa_device(buf,sizeof(buf));add_line(lines,&n,"ALSA-Device",buf,0);
-    add_line(lines,&n,"Display",is_display_off()?"Aus":"An",0);
-    int brightness=get_brightness_percent();if(brightness>=0)snprintf(buf,sizeof(buf),"<  %d %%  >",brightness);else strcpy(buf,"--");add_line(lines,&n,"Helligkeit",buf,0);
+
+    /* Zuerst alles, was der Benutzer direkt aendern kann. */
+    add_line(lines,&n,"AUDIO / DISPLAY","",1);
+    snprintf(buf,sizeof(buf),"<  %d %%  >",(volume*100)/MIX_MAX_VOLUME);
+    add_line(lines,&n,"Lautstaerke",buf,0);
+
+    int brightness=get_brightness_percent();
+    if(brightness>=0)snprintf(buf,sizeof(buf),"<  %d %%  >",brightness);else strcpy(buf,"--");
+    add_line(lines,&n,"Helligkeit",buf,0);
+
     int led_gpio=led_get_gpio();
-    if(led_gpio>=0)snprintf(buf,sizeof(buf),"<  %d  >  %s%s",led_gpio,led_gpio_is_manual()?"Manuell":"Auto",led_gpio_available(led_gpio)?"":" / nicht verfuegbar");else snprintf(buf,sizeof(buf),"<  Auto  >  nicht erkannt");
+    if(led_gpio>=0){
+        snprintf(buf,sizeof(buf),"<  %d  >  %s%s",led_gpio,led_gpio_is_manual()?"Manuell":"Auto",led_gpio_available(led_gpio)?"":" / nicht verfuegbar");
+    }else{
+        snprintf(buf,sizeof(buf),"<  Auto  >  nicht erkannt");
+    }
     add_line(lines,&n,"LED GPIO",buf,0);
-    snprintf(buf,sizeof(buf),"<  %s  >",led_test_mode()?"An":"Aus");add_line(lines,&n,"LED Test",buf,0);
-    add_line(lines,&n,"WIEDERGABE","",1);snprintf(buf,sizeof(buf),"<  %s  >",repeat_book?"Wiederholen":"Stop am Ende");add_line(lines,&n,"Hoerspielende",buf,0);
+    snprintf(buf,sizeof(buf),"<  %s  >",led_test_mode()?"An":"Aus");
+    add_line(lines,&n,"LED Test",buf,0);
+
+    add_line(lines,&n,"WIEDERGABE","",1);
+    snprintf(buf,sizeof(buf),"<  %s  >",repeat_book?"Wiederholen":"Stop am Ende");
+    add_line(lines,&n,"Hoerspielende",buf,0);
+
     add_line(lines,&n,"TIMER","",1);
     int shown_sleep=sleep_timer_edit_minutes>=0?sleep_timer_edit_minutes:*c->sleep_timer_minutes;
-    if(sleep_timer_edit_minutes>=0){if(shown_sleep>0)snprintf(buf,sizeof(buf),"<  %d min  >  A: OK",shown_sleep);else snprintf(buf,sizeof(buf),"<  Aus  >  A: OK");}
-    else if(*c->sleep_timer_active){Uint32 now=SDL_GetTicks();Uint32 remaining=(*c->sleep_timer_end_ticks>now)?(*c->sleep_timer_end_ticks-now):0;int rem_min=(int)(remaining/60000);int rem_sec=(int)((remaining/1000)%60);snprintf(buf,sizeof(buf),"<  %d min  >  %d:%02d",*c->sleep_timer_minutes,rem_min,rem_sec);}
-    else if(*c->sleep_timer_minutes>0)snprintf(buf,sizeof(buf),"<  %d min  >",*c->sleep_timer_minutes);else snprintf(buf,sizeof(buf),"<  Aus  >");
+    if(sleep_timer_edit_minutes>=0){
+        if(shown_sleep>0)snprintf(buf,sizeof(buf),"<  %d min  >  A: OK",shown_sleep);
+        else snprintf(buf,sizeof(buf),"<  Aus  >  A: OK");
+    }else if(*c->sleep_timer_active){
+        Uint32 now=SDL_GetTicks();
+        Uint32 remaining=(*c->sleep_timer_end_ticks>now)?(*c->sleep_timer_end_ticks-now):0;
+        int rem_min=(int)(remaining/60000);
+        int rem_sec=(int)((remaining/1000)%60);
+        snprintf(buf,sizeof(buf),"<  %d min  >  %d:%02d",*c->sleep_timer_minutes,rem_min,rem_sec);
+    }else if(*c->sleep_timer_minutes>0){
+        snprintf(buf,sizeof(buf),"<  %d min  >",*c->sleep_timer_minutes);
+    }else{
+        snprintf(buf,sizeof(buf),"<  Aus  >");
+    }
     add_line(lines,&n,"Sleeptimer",buf,0);
-    if(idle_timer_minutes>0)snprintf(buf,sizeof(buf),"<  %d min  >",idle_timer_minutes);else snprintf(buf,sizeof(buf),"<  Aus  >");add_line(lines,&n,"Idle-Timer",buf,0);
-    if(shutdown_after_tracks>0)snprintf(buf,sizeof(buf),"<  %d Tracks  >",shutdown_after_tracks);else snprintf(buf,sizeof(buf),"<  Aus  >");add_line(lines,&n,"Shutdown nach Tracks",buf,0);
-    snprintf(buf,sizeof(buf),"<  %s  >",shutdown_at_book_end?"An":"Aus");add_line(lines,&n,"Shutdown am Ende",buf,0);
+
+    if(idle_timer_minutes>0)snprintf(buf,sizeof(buf),"<  %d min  >",idle_timer_minutes);
+    else snprintf(buf,sizeof(buf),"<  Aus  >");
+    add_line(lines,&n,"Idle-Timer",buf,0);
+
+    if(shutdown_after_tracks>0)snprintf(buf,sizeof(buf),"<  %d Tracks  >",shutdown_after_tracks);
+    else snprintf(buf,sizeof(buf),"<  Aus  >");
+    add_line(lines,&n,"Shutdown nach Tracks",buf,0);
+
+    snprintf(buf,sizeof(buf),"<  %s  >",shutdown_at_book_end?"An":"Aus");
+    add_line(lines,&n,"Shutdown am Ende",buf,0);
+
+    /* Danach nur noch Informationen. */
+    add_line(lines,&n,"SYSTEM","",1);
+    snprintf(buf,sizeof(buf),"%s",APP_VERSION);
+    add_line(lines,&n,"Version",buf,0);
+
+    struct utsname u;
+    if(uname(&u)==0){
+        add_line(lines,&n,"Kernel",u.release,0);
+        add_line(lines,&n,"Architektur",u.machine,0);
+        add_line(lines,&n,"Hostname",u.nodename,0);
+    }
+    format_uptime(buf,sizeof(buf));
+    add_line(lines,&n,"Uptime",buf,0);
+
+    add_line(lines,&n,"LEISTUNG","",1);
+    if(*c->cpu_usage>=0)snprintf(buf,sizeof(buf),"%.0f %%",*c->cpu_usage);else strcpy(buf,"--");
+    add_line(lines,&n,"CPU",buf,0);
+    if(*c->cpu_temperature>=0)snprintf(buf,sizeof(buf),"%.1f °C",*c->cpu_temperature);else strcpy(buf,"--");
+    add_line(lines,&n,"CPU-Temperatur",buf,0);
+    format_memory(buf,sizeof(buf));
+    add_line(lines,&n,"RAM",buf,0);
+    if(*c->ram_usage>=0)snprintf(buf,sizeof(buf),"%.0f %%",*c->ram_usage);else strcpy(buf,"--");
+    add_line(lines,&n,"RAM-Auslastung",buf,0);
+
+    add_line(lines,&n,"AKKU / AUDIO","",1);
+    if(*c->battery_percent>=0)snprintf(buf,sizeof(buf),"%d %%",*c->battery_percent);else strcpy(buf,"--");
+    add_line(lines,&n,"Akku",buf,0);
+    add_line(lines,&n,"Ladezustand",*c->battery_charging==1?"Laedt":"Entlaedt",0);
+    format_audio_output(buf,sizeof(buf));
+    add_line(lines,&n,"Audio-Ausgabe",buf,0);
+    format_alsa_device(buf,sizeof(buf));
+    add_line(lines,&n,"ALSA-Device",buf,0);
+    add_line(lines,&n,"Display",is_display_off()?"Aus":"An",0);
+
     add_line(lines,&n,"SPEICHER","",1);
-    for(int i=0;i<*c->storage_path_count;i++){if(c->storage_paths[i].available)format_free_space(c->storage_paths[i].path,buf,sizeof(buf));else snprintf(buf,sizeof(buf),"nicht verfuegbar");add_line(lines,&n,c->storage_paths[i].path,buf,0);}
+    for(int i=0;i<*c->storage_path_count;i++){
+        if(c->storage_paths[i].available)format_free_space(c->storage_paths[i].path,buf,sizeof(buf));
+        else snprintf(buf,sizeof(buf),"nicht verfuegbar");
+        add_line(lines,&n,c->storage_paths[i].path,buf,0);
+    }
+
+    /* Projektangaben ganz ans Ende. */
+    add_line(lines,&n,"PROJEKT / KONTAKT","",1);
+    add_line(lines,&n,"GitHub","github.com/Gunnar82/book_player_r36s",0);
+    add_line(lines,&n,"Kontakt","gunnar_82@hotmail.com",0);
+
     return n;
 }
 static int find_led_test_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"LED Test"))return i;return -1;}
@@ -124,16 +213,54 @@ static int find_sleep_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if
 static int find_idle_line(InfoLine *lines,int count){for(int i=0;i<count;i++)if(!strcmp(lines[i].label,"Idle-Timer"))return i;return -1;}
 static int next_selectable(InfoLine *lines,int count,int from,int dir){int i=from+dir;while(i>=0&&i<count){if(!lines[i].heading)return i;i+=dir;}return from;}
 static void keep_visible(int count){int max=count-MAX_VISIBLE;if(max<0)max=0;if(selected_line<page_offset)page_offset=selected_line;if(selected_line>=page_offset+MAX_VISIBLE)page_offset=selected_line-MAX_VISIBLE+1;if(page_offset<0)page_offset=0;if(page_offset>max)page_offset=max;}
-static void change_led_gpio(int delta){int gpio=led_get_gpio();if(gpio<0)gpio=0;else gpio+=delta;if(gpio<0)gpio=0;if(gpio>511)gpio=511;led_set_gpio_manual(gpio);}
-static void persist_playback_config(void){if(save_playback_config()!=0)fprintf(stderr,"Einstellungen: config.ini konnte nicht gespeichert werden.\n");}
+static void change_led_gpio(int delta){
+    int gpio=led_get_gpio();
+    if(gpio<0) gpio=0;
+    else gpio+=delta;
+    if(gpio<0) gpio=0;
+    if(gpio>511) gpio=511;
+    led_set_gpio_manual(gpio);
+}
+static void persist_playback_config(void){
+    if(save_playback_config()!=0)
+        fprintf(stderr,"Einstellungen: config.ini konnte nicht gespeichert werden.\n");
+}
 static void toggle_repeat_book(void){repeat_book=!repeat_book;persist_playback_config();}
 static void change_shutdown_tracks(int delta){shutdown_after_tracks+=delta;if(shutdown_after_tracks<0)shutdown_after_tracks=0;if(shutdown_after_tracks>999)shutdown_after_tracks=999;}
 static void toggle_shutdown_end(void){shutdown_at_book_end=!shutdown_at_book_end;}
-static void change_volume(int delta){volume+=delta;if(volume<0)volume=0;if(volume>MIX_MAX_VOLUME)volume=MIX_MAX_VOLUME;Mix_VolumeMusic(volume);save_state();}
+static void change_volume(int delta){
+    volume += delta;
+    if(volume < 0) volume = 0;
+    if(volume > MIX_MAX_VOLUME) volume = MIX_MAX_VOLUME;
+    Mix_VolumeMusic(volume);
+    save_state();
+}
 static void change_brightness(int delta){int p=get_brightness_percent();if(p<0)return;p+=delta;if(p<10)p=10;if(p>100)p=100;set_brightness_percent(p);}
-static void edit_sleep_timer(ScreenContext *c,int delta){if(sleep_timer_edit_minutes<0)sleep_timer_edit_minutes=*c->sleep_timer_minutes;sleep_timer_edit_minutes+=delta;if(sleep_timer_edit_minutes<SLEEP_MIN_MINUTES)sleep_timer_edit_minutes=SLEEP_MIN_MINUTES;if(sleep_timer_edit_minutes>SLEEP_MAX_MINUTES)sleep_timer_edit_minutes=SLEEP_MAX_MINUTES;}
-static void confirm_sleep_timer(ScreenContext *c){if(sleep_timer_edit_minutes<0)return;*c->sleep_timer_minutes=sleep_timer_edit_minutes;if(*c->sleep_timer_minutes==0){*c->sleep_timer_active=0;*c->sleep_timer_end_ticks=0;}else{*c->sleep_timer_active=1;*c->sleep_timer_end_ticks=SDL_GetTicks()+(Uint32)(*c->sleep_timer_minutes*60000);}sleep_timer_edit_minutes=-1;}
-static void change_idle_timer(int delta){idle_timer_minutes+=delta;if(idle_timer_minutes<0)idle_timer_minutes=0;if(idle_timer_minutes>IDLE_TIMER_MAX_MINUTES)idle_timer_minutes=IDLE_TIMER_MAX_MINUTES;save_state();}
+static void edit_sleep_timer(ScreenContext *c,int delta){
+    if(sleep_timer_edit_minutes < 0) sleep_timer_edit_minutes = *c->sleep_timer_minutes;
+    sleep_timer_edit_minutes += delta;
+    if(sleep_timer_edit_minutes < SLEEP_MIN_MINUTES) sleep_timer_edit_minutes = SLEEP_MIN_MINUTES;
+    if(sleep_timer_edit_minutes > SLEEP_MAX_MINUTES) sleep_timer_edit_minutes = SLEEP_MAX_MINUTES;
+}
+static void confirm_sleep_timer(ScreenContext *c){
+    if(sleep_timer_edit_minutes < 0) return;
+    *c->sleep_timer_minutes = sleep_timer_edit_minutes;
+    if(*c->sleep_timer_minutes == 0){
+        *c->sleep_timer_active = 0;
+        *c->sleep_timer_end_ticks = 0;
+    }else{
+        *c->sleep_timer_active = 1;
+        *c->sleep_timer_end_ticks = SDL_GetTicks() + (Uint32)(*c->sleep_timer_minutes * 60000);
+    }
+    sleep_timer_edit_minutes = -1;
+}
+static void change_idle_timer(int delta){
+    idle_timer_minutes += delta;
+    if(idle_timer_minutes < 0) idle_timer_minutes = 0;
+    if(idle_timer_minutes > IDLE_TIMER_MAX_MINUTES) idle_timer_minutes = IDLE_TIMER_MAX_MINUTES;
+    save_state();
+}
+
 void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
     InfoLine lines[64];int count=build_lines(c,lines);if(selected_line>=count)selected_line=count-1;if(selected_line<0)selected_line=0;if(count>0&&lines[selected_line].heading)selected_line=next_selectable(lines,count,selected_line,1);
     if(e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;
@@ -144,21 +271,38 @@ void systeminfo_handle_event(ScreenContext *c,const SDL_Event *e){
         if(b==BUTTON_R2){selected_line=count-1;while(selected_line>0&&lines[selected_line].heading)selected_line--;keep_visible(count);return;}
         if(b==BUTTON_DPAD_UP){selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);return;}
         if(b==BUTTON_DPAD_DOWN){selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);return;}
-        int gl=find_led_gpio_line(lines,count),tl=find_led_test_line(lines,count),vl=find_volume_line(lines,count),bl=find_brightness_line(lines,count),sl=find_sleep_line(lines,count),il=find_idle_line(lines,count),rl=find_repeat_line(lines,count),stl=find_shutdown_tracks_line(lines,count),sel=find_shutdown_end_line(lines,count);
+        int gl=find_led_gpio_line(lines,count);
+        int tl=find_led_test_line(lines,count);
+        int vl=find_volume_line(lines,count);
+        int bl=find_brightness_line(lines,count);
+        int sl=find_sleep_line(lines,count);
+        int il=find_idle_line(lines,count);
+        int rl=find_repeat_line(lines,count);
+        int stl=find_shutdown_tracks_line(lines,count);
+        int sel=find_shutdown_end_line(lines,count);
         if((b==BUTTON_A||b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)&&selected_line==rl){toggle_repeat_book();return;}
-        if(b==BUTTON_DPAD_LEFT&&selected_line==stl){change_shutdown_tracks(-1);return;}if(b==BUTTON_DPAD_RIGHT&&selected_line==stl){change_shutdown_tracks(1);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==stl){change_shutdown_tracks(-1);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==stl){change_shutdown_tracks(1);return;}
         if((b==BUTTON_A||b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)&&selected_line==sel){toggle_shutdown_end();return;}
-        if(b==BUTTON_DPAD_LEFT&&selected_line==bl){change_brightness(-BRIGHTNESS_STEP);return;}if(b==BUTTON_DPAD_RIGHT&&selected_line==bl){change_brightness(BRIGHTNESS_STEP);return;}
-        if(b==BUTTON_A&&selected_line==gl){led_reset_gpio_auto();return;}if(b==BUTTON_A&&selected_line==tl){led_set_test_mode(!led_test_mode());return;}if((b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)&&selected_line==tl){led_set_test_mode(!led_test_mode());return;}
-        if(b==BUTTON_A&&selected_line==sl){confirm_sleep_timer(c);return;}if(b==BUTTON_DPAD_LEFT&&selected_line==gl){change_led_gpio(-1);return;}if(b==BUTTON_DPAD_RIGHT&&selected_line==gl){change_led_gpio(1);return;}
-        if(b==BUTTON_DPAD_LEFT&&selected_line==vl){change_volume(-VOLUME_STEP);return;}if(b==BUTTON_DPAD_RIGHT&&selected_line==vl){change_volume(VOLUME_STEP);return;}
-        if(b==BUTTON_DPAD_LEFT&&selected_line==sl){edit_sleep_timer(c,-SLEEP_STEP_MINUTES);return;}if(b==BUTTON_DPAD_RIGHT&&selected_line==sl){edit_sleep_timer(c,SLEEP_STEP_MINUTES);return;}
-        if(b==BUTTON_DPAD_LEFT&&selected_line==il){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);return;}if(b==BUTTON_DPAD_RIGHT&&selected_line==il){change_idle_timer(IDLE_TIMER_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==bl){change_brightness(-BRIGHTNESS_STEP);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==bl){change_brightness(BRIGHTNESS_STEP);return;}
+        if(b==BUTTON_A&&selected_line==gl){led_reset_gpio_auto();return;}
+        if(b==BUTTON_A&&selected_line==tl){led_set_test_mode(!led_test_mode());return;}
+        if((b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)&&selected_line==tl){led_set_test_mode(!led_test_mode());return;}
+        if(b==BUTTON_A&&selected_line==sl){confirm_sleep_timer(c);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==gl){change_led_gpio(-1);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==gl){change_led_gpio(1);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==vl){change_volume(-VOLUME_STEP);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==vl){change_volume(VOLUME_STEP);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==sl){edit_sleep_timer(c,-SLEEP_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==sl){edit_sleep_timer(c,SLEEP_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_LEFT&&selected_line==il){change_idle_timer(-IDLE_TIMER_STEP_MINUTES);return;}
+        if(b==BUTTON_DPAD_RIGHT&&selected_line==il){change_idle_timer(IDLE_TIMER_STEP_MINUTES);return;}
     }
     if(e->type==SDL_JOYAXISMOTION){
         if(e->jaxis.axis==AXIS_Y){if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){selected_line=next_selectable(lines,count,selected_line,-1);keep_visible(count);*c->axis_y_lock=1;}else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){selected_line=next_selectable(lines,count,selected_line,1);keep_visible(count);*c->axis_y_lock=1;}if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_y_lock=0;}
         if(e->jaxis.axis==AXIS_X){
-            int gl=find_led_gpio_line(lines,count),tl=find_led_test_line(lines,count),vl=find_volume_line(lines,count),bl=find_brightness_line(lines,count),sl=find_sleep_line(lines,count),il=find_idle_line(lines,count),rl=find_repeat_line(lines,count),stl=find_shutdown_tracks_line(lines,count),sel=find_shutdown_end_line(lines,count);
+            int gl=find_led_gpio_line(lines,count), tl=find_led_test_line(lines,count), vl=find_volume_line(lines,count), bl=find_brightness_line(lines,count), sl=find_sleep_line(lines,count), il=find_idle_line(lines,count), rl=find_repeat_line(lines,count), stl=find_shutdown_tracks_line(lines,count), sel=find_shutdown_end_line(lines,count);
             if(selected_line==rl){if(!*c->axis_x_lock&&abs(e->jaxis.value)>AXIS_DEADZONE){toggle_repeat_book();*c->axis_x_lock=1;}}
             else if(selected_line==stl){if(!*c->axis_x_lock&&e->jaxis.value<-AXIS_DEADZONE){change_shutdown_tracks(-1);*c->axis_x_lock=1;}else if(!*c->axis_x_lock&&e->jaxis.value>AXIS_DEADZONE){change_shutdown_tracks(1);*c->axis_x_lock=1;}}
             else if(selected_line==sel){if(!*c->axis_x_lock&&abs(e->jaxis.value)>AXIS_DEADZONE){toggle_shutdown_end();*c->axis_x_lock=1;}}
