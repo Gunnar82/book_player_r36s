@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.1.11**
+**0.1.12**
 
 ## Funktionen
 
@@ -61,6 +61,8 @@ shutdown_at_book_end=0
 
 `shutdown_at_book_end=1` fährt das Gerät nach dem letzten Track des Hörspiels herunter. Diese Option hat Vorrang vor `repeat_book`.
 
+Die drei Werte unter `[playback]` werden beim Ändern in `Einstellungen` sofort in `config.ini` gespeichert. Ab Version 0.1.12 wird die Datei zusätzlich mit `fflush` und `fsync` dauerhaft geschrieben, damit `shutdown_after_tracks` und `shutdown_at_book_end` einen Programm- oder Systemneustart zuverlässig überleben. Der laufende Countdown für `shutdown_after_tracks` ist getrennt vom gespeicherten Einstellwert.
+
 `led_gpio=-1` bedeutet: Beim ersten Start versucht der Player, unter den bereits exportierten Sysfs-GPIOs einen eindeutigen Ausgang zu erkennen. Wird genau einer gefunden, wird dessen Nummer in `config.ini` gespeichert. Unter `Einstellungen` kann `LED GPIO` anschließend mit Links/Rechts manuell geändert werden; die Änderung wird sofort als `manual` gespeichert. Mit `A` auf dem Eintrag wird die automatische Erkennung erneut ausgeführt.
 
 ## Systemberechtigungen
@@ -82,8 +84,6 @@ Danach die Datei `/etc/udev/rules.d/99-gpio-led.rules` mit folgendem Inhalt anle
 SUBSYSTEM=="gpio", KERNEL=="gpio[0-9]*", ACTION=="add", RUN+="/bin/chown root:gpio /sys%p/value", RUN+="/bin/chmod 0660 /sys%p/value"
 ```
 
-Diese einfache Variante wurde gewählt, weil die vorherige zusätzliche Prüfung auf `direction=out` beim normalen Boot auf dem getesteten System nicht zuverlässig griff, obwohl sie bei einem manuellen `udevadm trigger` funktionierte.
-
 Die Regeldatei selbst darf nicht ausführbar sein:
 
 ```sh
@@ -98,7 +98,7 @@ sudo udevadm trigger --action=add --subsystem-match=gpio
 sudo udevadm settle
 ```
 
-Nach dem Hinzufügen von `ark` zur Gruppe `gpio` ist eine neue Anmeldung oder ein Neustart erforderlich, damit die Gruppenmitgliedschaft in der Benutzersitzung aktiv wird.
+Nach dem Hinzufügen von `ark` zur Gruppe `gpio` ist eine neue Anmeldung oder ein Neustart erforderlich.
 
 Prüfen:
 
@@ -114,29 +114,11 @@ Bei einem erkannten GPIO 77 sollte die `value`-Datei beispielsweise so aussehen:
 -rw-rw---- 1 root gpio ... /sys/class/gpio/gpio77/value
 ```
 
-Ein Schreibtest kann anschließend ohne `sudo` erfolgen:
-
-```sh
-echo 0 | tee /sys/class/gpio/gpio77/value
-sleep 1
-echo 1 | tee /sys/class/gpio/gpio77/value
-```
-
-Die udev-Regel ist absichtlich nicht auf GPIO 77 festgelegt. Unterschiedliche DTBs bzw. Gerätevarianten können die LED unter einer anderen GPIO-Nummer bereitstellen. Die Regel gibt nur die jeweilige `value`-Datei für die Gruppe `gpio` frei; `direction`, `export` und `unexport` werden nicht freigegeben.
-
-Zum Debuggen einer Regel kann beispielsweise verwendet werden:
-
-```sh
-sudo udevadm test --action=add /sys/class/gpio/gpio77 2>&1 | grep -Ei 'gpio|RUN|chmod|chown'
-```
-
-Hinweis: `udevadm test` zeigt die passenden Regeln und `RUN`-Kommandos an, führt die `RUN`-Kommandos selbst aber nicht aus.
+Die udev-Regel ist absichtlich nicht auf GPIO 77 festgelegt. Unterschiedliche DTBs bzw. Gerätevarianten können die LED unter einer anderen GPIO-Nummer bereitstellen.
 
 ### Herunterfahren ohne Passwortabfrage
 
 Damit der Player das Gerät über den Menüpunkt `Herunterfahren` ohne interaktive Passwortabfrage ausschalten kann, benötigt der Benutzer `ark` eine gezielt eingeschränkte `sudo`-Freigabe für `poweroff`.
-
-Die Regel sollte mit `visudo` angelegt werden, zum Beispiel als `/etc/sudoers.d/hoerspiel-player`:
 
 ```sudoers
 ark ALL=(root) NOPASSWD: /usr/sbin/poweroff
@@ -149,7 +131,7 @@ sudo chmod 0440 /etc/sudoers.d/hoerspiel-player
 sudo visudo -cf /etc/sudoers.d/hoerspiel-player
 ```
 
-Falls `poweroff` auf dem verwendeten System an einem anderen Pfad liegt, muss in der sudoers-Regel exakt der von `command -v poweroff` ausgegebene Pfad verwendet werden. Es sollte ausdrücklich **nicht** `NOPASSWD: ALL` vergeben werden.
+Falls `poweroff` auf dem verwendeten System an einem anderen Pfad liegt, muss in der sudoers-Regel exakt der von `command -v poweroff` ausgegebene Pfad verwendet werden.
 
 ## USB-Netzwerk-Tools
 
