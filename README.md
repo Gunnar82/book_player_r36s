@@ -1,10 +1,10 @@
 # book_player_r36s
 
-Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
+Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.1.8**
+**0.1.9**
 
 ## Funktionen
 
@@ -18,6 +18,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - Lautstärke im System-Menü einstellbar
 - Audio-/ALSA-Ausgabe im System-Menü sichtbar, sofern ermittelbar
 - LED-GPIO automatisch ermitteln und im System-Menü manuell überschreiben
+- LED-Test im System-Menü
 - USB-Mediatasten
 - Button-Debug über Linux-Input-Events
 - D-Pad, Analogstick und Shoulder-Button-Navigation
@@ -48,9 +49,73 @@ led_gpio_mode=auto
 
 `led_gpio=-1` bedeutet: Beim ersten Start versucht der Player, unter den bereits exportierten Sysfs-GPIOs einen eindeutigen Ausgang zu erkennen. Wird genau einer gefunden, wird dessen Nummer in `config.ini` gespeichert. Im System-Menü kann `LED GPIO` anschließend mit Links/Rechts manuell geändert werden; die Änderung wird sofort als `manual` gespeichert. Mit `A` auf dem Eintrag wird die automatische Erkennung erneut ausgeführt.
 
-Die GPIO-Berechtigungen für den Benutzer `ark` werden separat eingerichtet und sind nicht Bestandteil der automatischen Erkennung.
-
 ## Systemberechtigungen
+
+### GPIO-Zugriff für die LED
+
+Die exportierten Sysfs-GPIO-Dateien gehören standardmäßig `root:root` und sind für den Benutzer `ark` nicht beschreibbar. Der Player verwendet deshalb eine eigene Gruppe `gpio` und eine udev-Regel, die exportierte GPIO-Ausgänge für diese Gruppe schreibbar macht.
+
+Gruppe anlegen und `ark` hinzufügen:
+
+```sh
+sudo groupadd -f gpio
+sudo usermod -aG gpio ark
+```
+
+Danach die Datei `/etc/udev/rules.d/99-gpio-led.rules` mit folgendem Inhalt anlegen:
+
+```udev
+SUBSYSTEM=="gpio", KERNEL=="gpio[0-9]*", ACTION=="add", \
+RUN+="/bin/sh -c 'if [ -f /sys%p/direction ] && grep -q ^out /sys%p/direction; then chown root:gpio /sys%p/value; chmod 0660 /sys%p/value; fi'"
+```
+
+Die Regeldatei selbst darf nicht ausführbar sein:
+
+```sh
+sudo chmod 0644 /etc/udev/rules.d/99-gpio-led.rules
+```
+
+Regeln anschließend neu laden und auf bereits vorhandene GPIOs anwenden:
+
+```sh
+sudo udevadm control --reload-rules
+sudo udevadm trigger --action=add --subsystem-match=gpio
+sudo udevadm settle
+```
+
+Nach dem Hinzufügen von `ark` zur Gruppe `gpio` ist eine neue Anmeldung oder ein Neustart erforderlich, damit die Gruppenmitgliedschaft in der Benutzersitzung aktiv wird.
+
+Prüfen:
+
+```sh
+id ark
+getent group gpio
+ls -l /sys/class/gpio/gpio77/value
+```
+
+Bei einem erkannten GPIO 77 sollte die `value`-Datei beispielsweise so aussehen:
+
+```text
+-rw-rw---- 1 root gpio ... /sys/class/gpio/gpio77/value
+```
+
+Ein Schreibtest kann anschließend ohne `sudo` erfolgen:
+
+```sh
+echo 0 | tee /sys/class/gpio/gpio77/value
+sleep 1
+echo 1 | tee /sys/class/gpio/gpio77/value
+```
+
+Die udev-Regel ist absichtlich nicht auf GPIO 77 festgelegt. Unterschiedliche DTBs bzw. Gerätevarianten können die LED unter einer anderen GPIO-Nummer bereitstellen. Die Regel berücksichtigt exportierte GPIOs mit `direction=out`; Eingänge wie eine Headphone-Detection werden dadurch nicht für Schreibzugriffe freigegeben.
+
+Zum Debuggen einer Regel kann beispielsweise verwendet werden:
+
+```sh
+sudo udevadm test --action=add /sys/class/gpio/gpio77 2>&1 | grep -Ei 'gpio|RUN|chmod|chown'
+```
+
+Hinweis: `udevadm test` zeigt die passenden Regeln und `RUN`-Kommandos an, führt die `RUN`-Kommandos selbst aber nicht aus.
 
 ### Herunterfahren ohne Passwortabfrage
 
