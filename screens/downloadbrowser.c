@@ -69,7 +69,7 @@ void downloadbrowser_handle_event(ScreenContext *c,const SDL_Event *e){
     if(!loaded&&!loading)load_current();
     if(e->type==SDL_JOYBUTTONDOWN){
         int b=e->jbutton.button;
-        if(b==BUTTON_B){if(relative_path[0]){parent_dir();return;}*c->screen=SCREEN_SYSTEM_MENU;return;}
+        if(b==BUTTON_B){if(relative_path[0]){parent_dir();return;}*c->screen=SCREEN_PLAYER;return;}
         if(b==BUTTON_DPAD_UP){selection--;if(selection<0)selection=entry_count>0?entry_count-1:0;keep_visible();return;}
         if(b==BUTTON_DPAD_DOWN){selection++;if(selection>=entry_count)selection=0;keep_visible();return;}
         if(b==BUTTON_L1){selection-=LIST_PAGE_SIZE;if(selection<0)selection=0;keep_visible();return;}
@@ -91,7 +91,7 @@ void downloadbrowser_render(ScreenContext *c){
     if(!loaded&&!loading)load_current();
     draw_text(c->renderer,c->font,"Downloads",20,20,c->selected);
     char pathline[2200];if(relative_path[0])snprintf(pathline,sizeof(pathline),"/%s",relative_path);else snprintf(pathline,sizeof(pathline),"/");draw_text(c->renderer,c->font,pathline,20,48,c->gray);
-    if(entry_count==0){if(status[0])draw_text(c->renderer,c->font,status,20,100,c->gray);else draw_text(c->renderer,c->font,"Kein Listing verfuegbar",20,100,c->gray);draw_text(c->renderer,c->font,"B: Zurueck",20,SCREEN_H-25,c->gray);return;}
+    if(entry_count==0){if(status[0])draw_text(c->renderer,c->font,status,20,100,c->gray);else draw_text(c->renderer,c->font,"Kein Listing verfuegbar",20,100,c->gray);draw_text(c->renderer,c->font,relative_path[0]?"B: Hoeher":"B: Hauptbildschirm",20,SCREEN_H-25,c->gray);return;}
     int end=scroll_offset+MAX_ROWS;if(end>entry_count)end=entry_count;int y=TOP_Y;
     for(int i=scroll_offset;i<end;i++,y+=ROW_H){
         SDL_Color col=i==selection?c->selected:c->white;
@@ -103,5 +103,5 @@ void downloadbrowser_render(ScreenContext *c){
     }
     char sel[96];snprintf(sel,sizeof(sel),"%d ausgewaehlt",selected_count);draw_text(c->renderer,c->font,sel,20,392,c->selected);
     if(status[0])draw_text(c->renderer,c->font,status,170,392,finished_download?c->selected:c->gray);
-    draw_text(c->renderer,c->font,"A: Oeffnen  B: Hoeher  Y: Markieren  X: Auswahl laden",20,SCREEN_H-25,c->gray);
+    draw_text(c->renderer,c->font,relative_path[0]?"A: Oeffnen  B: Hoeher  Y: Markieren  X: Auswahl laden":"A: Oeffnen  B: Hauptbildschirm  Y: Markieren  X: Auswahl laden",20,SCREEN_H-25,c->gray);
 }
