@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.1-dev1**
+**0.2.1**
 
 ## Funktionen
 
@@ -149,4 +149,6 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-`0.2.1-dev1` basiert auf dem stabilen 0.2.0-Stand. Akku- und Lautstärkeanzeige wurden auf dem Wiedergabebildschirm wiederhergestellt. Die Entwicklung erfolgt im Branch `develop-0.2.1`.
+**0.2.1** enthält den stabilen 0.2.0-Stand inklusive HTTPS/mTLS-Downloads und Konfigurationsanzeige. Zusätzlich sind Akku- und Lautstärkeanzeige auf dem Wiedergabebildschirm wiederhergestellt.
+
+Ab 0.2.1 erfolgt die weitere Entwicklung direkt auf `main`.
