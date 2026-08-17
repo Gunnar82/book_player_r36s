@@ -69,7 +69,7 @@ static void do_shutdown(Mix_Music **music)
     set_display_off(0);
     led_set(0);
     sync();
-    system("/usr/bin/sudo -n /usr/sbin/poweroff");
+    system("/usr/bin/busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager PowerOff b false");
 }
 
 int main(int argc, char **argv)
