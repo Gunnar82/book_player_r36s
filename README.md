@@ -6,7 +6,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.0-dev1**
+**0.2.0-dev2**
 
 ## Funktionen
 
@@ -22,6 +22,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Akku-, CPU-, RAM- und Temperaturanzeige
 - Lautstärke, Audio-/ALSA-Ausgabe, LED-GPIO und LED-Test unter `Einstellungen`
 - Einstellungen sind sortiert: zuerst alle änderbaren Werte, danach System-/Statusinformationen, ganz unten GitHub und Kontakt
+- unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
 - USB-Mediatasten, Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
 
@@ -39,7 +40,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Konfiguration
 
-`config.ini` liegt im selben Verzeichnis wie `hoerspiel_player`.
+`config.ini` liegt im selben Verzeichnis wie `hoerspiel_player`. Der Player ermittelt diesen Pfad über `/proc/self/exe`; unter `Einstellungen` wird der daraus resultierende absolute Pfad angezeigt.
 
 ```ini
 [storage]
@@ -129,8 +130,22 @@ Ein Verzeichnis mit Dateien bietet `[Ordner herunterladen]`. Downloads werden zu
 
 ### Entwicklungszweig / Patch-Stack
 
-`develop-0.2` basiert weiterhin auf dem stabilen 0.1.14-Quellstand. Die ersten 0.2-Änderungen liegen unter `patches/` als kleiner Patch-Stack. Das Dockerfile wendet diese Patches vor dem Build automatisch an. Im bereitgestellten 0.2-Download-ZIP sind die Änderungen bereits direkt in die Quelldateien eingearbeitet.
+`develop-0.2` basiert weiterhin auf dem stabilen 0.1.14-Quellstand. Die 0.2-Änderungen liegen unter `patches/` als Patch-Stack. Das Dockerfile wendet diese Patches vor dem Build automatisch an.
 
-### Build-Abhängigkeit
+### ARM64-Build
 
-0.2 benötigt zusätzlich `libcurl` mit TLS-Unterstützung. Das Dockerfile installiert `libcurl4-openssl-dev`, `ca-certificates` und `patch`.
+DarkOS läuft auf AArch64. Der Entwicklungsbuild wird daher nativ für `linux/arm64` erzeugt und verwendet auf dem Gerät die bereits installierten AArch64-Systembibliotheken. Es wird kein eigener `lib/`-Ordner aus dem Docker-Container mit ausgeliefert.
+
+```sh
+docker buildx build \
+  --platform linux/arm64 \
+  --load \
+  -t hoerspiel-build-arm64 \
+  .
+
+docker create --name hoerspiel-build-temp hoerspiel-build-arm64
+docker cp hoerspiel-build-temp:/build/hoerspiel_player ./
+docker rm hoerspiel-build-temp
+```
+
+0.2 benötigt zusätzlich `libcurl` mit TLS-Unterstützung. Das Dockerfile installiert zum Kompilieren `libcurl4-openssl-dev`, `ca-certificates` und `patch`. Auf DarkOS wird die native AArch64-`libcurl.so.4` des Systems verwendet.
