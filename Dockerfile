@@ -18,13 +18,20 @@ COPY *.c *.h ./
 COPY screens ./screens
 COPY patches ./patches
 
-# 0.2 liegt auf dem Entwicklungsbranch als Patch-Stack auf dem 0.1.14-Quellstand.
-RUN if [ ! -f download.c ]; then \
-      for p in patches/*.patch; do patch -p1 < "$p"; done; \
-    fi
+# develop-0.2 basiert auf dem stabilen 0.1.14-Quellstand.
+# Die Kern-/Storage-/UI-Patches muessen immer angewendet werden.
+# download.c/.h und downloadbrowser.c/.h koennen im Branch bereits direkt
+# vorhanden sein; deren New-File-Patches werden dann uebersprungen.
+RUN patch -p1 < patches/01-core.patch && \
+    patch -p1 < patches/02-storage.patch && \
+    patch -p1 < patches/03-ui.patch && \
+    if [ ! -f download.c ]; then patch -p1 < patches/04-download-core.patch; fi && \
+    if [ ! -f screens/downloadbrowser.c ]; then patch -p1 < patches/05-download-ui.patch; fi && \
+    patch -p1 < patches/06-config-path-info.patch && \
+    patch -p1 < patches/07-version-dev2.patch && \
+    patch -p1 < patches/08-version-dev3.patch
 
-# Das Zielsystem DarkOS ist AArch64. Die Laufzeitbibliotheken (SDL2, curl usw.)
-# kommen vom Zielsystem und werden nicht aus dem Build-Container gebuendelt.
+# Zielsystem DarkOS ist AArch64. SDL2, curl usw. kommen vom Zielsystem.
 RUN gcc -o hoerspiel_player \
     main.c state.c backlight.c battery.c led.c scanner.c audio.c ui.c \
     storage.c systemstats.c media_keys.c download.c \
@@ -33,6 +40,7 @@ RUN gcc -o hoerspiel_player \
     screens/downloadbrowser.c \
     $(pkg-config --cflags --libs sdl2 SDL2_mixer SDL2_ttf libcurl)
 
-RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
+RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:' && \
+    grep 'APP_VERSION "0.2.0-dev3"' /build/config.h
 
 CMD ["true"]
