@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.5**
+**0.2.6**
 
 ## Funktionen
 
@@ -24,6 +24,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Downloads aus nginx-XML-Listings, standardmäßig deaktiviert
 - HTTP/HTTPS mit optionaler eigener CA und optionalen Client-Zertifikaten
 - Mehrfachauswahl im Downloadbrowser; ausgewählte Ordner werden rekursiv mit allen Unterordnern und Dateien geladen
+- Downloadanzeige mit Datei- und Gesamtfortschrittsbalken sowie geschätzter Restzeit für aktuelle Datei und gesamte Auswahl
 - bei aktivierten Downloads werden URL, Zielpfad und TLS-/Client-Zertifikatsparameter unter `Einstellungen` nur lesend angezeigt
 - unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
@@ -58,6 +59,15 @@ Im Downloadbrowser haben `X` und `Y` bewusst eine lokale Funktion. Die globale B
 - `L2`/`R2`: zum Anfang/Ende springen
 
 Markierungen bleiben beim Navigieren durch andere Remote-Ordner erhalten. Dadurch können beispielsweise mehrere Hörspielordner eines Autors ausgewählt und anschließend gemeinsam mit `X` geladen werden. Wird ein übergeordneter Ordner markiert, wird er rekursiv traversiert und vollständig heruntergeladen.
+
+Vor dem eigentlichen rekursiven Download ermittelt der Player die Anzahl und die bekannte Gesamtgröße der ausgewählten Dateien. Dadurch zeigt der Downloadbildschirm den Fortschritt über die **gesamte Auswahl** und nicht nur über den gerade bearbeiteten Ordner. Angezeigt werden:
+
+- aktuelle Datei mit Dateinummer, Größe, Prozentwert und eigenem Fortschrittsbalken
+- geschätzte Restzeit der aktuellen Datei
+- Gesamtfortschritt der kompletten Auswahl mit Größe, Prozentwert und eigenem Fortschrittsbalken
+- geschätzte Restzeit der kompletten Auswahl
+
+Die Restzeiten sind Schätzwerte auf Basis der seit Beginn der jeweiligen Datei bzw. des gesamten Downloads gemessenen mittleren Übertragungsrate. Direkt zu Beginn eines Downloads wird deshalb zunächst `--:--` angezeigt, bis genügend Messdaten vorliegen.
 
 ## Konfiguration
 
@@ -206,6 +216,6 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-**0.2.5** behebt die globale Tastenbelegung im Downloadbrowser: `X` und `Y` werden dort nicht mehr vorher von `main.c` abgefangen. Zusätzlich führt `B` im Download-Basisverzeichnis direkt zurück zum Wiedergabe-/Hauptbildschirm.
+**0.2.6** erweitert die Downloadanzeige um getrennte Fortschrittsbalken und Restzeit-Schätzungen für die aktuelle Datei und die komplette Auswahl. Für rekursive Mehrfachdownloads wird vor dem Download die gesamte Auswahl vermessen, damit Dateizähler, Gesamtgröße, Gesamtprozent und Gesamt-Restzeit über Ordnergrenzen hinweg korrekt weiterlaufen.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
