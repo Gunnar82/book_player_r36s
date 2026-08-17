@@ -1,0 +1,20 @@
+diff --git a/screens/systeminfo.c b/screens/systeminfo.c
+index 5b4164b..a6c08c2 100644
+--- a/screens/systeminfo.c
++++ b/screens/systeminfo.c
+@@ -3,6 +3,7 @@
+ #include "../state.h"
+ #include "../ui.h"
+ #include "../led.h"
++#include "../storage.h"
+ #include <stdio.h>
+ #include <string.h>
+ #include <sys/statvfs.h>
+@@ -164,6 +165,7 @@ static int build_lines(ScreenContext *c,InfoLine *lines){
+     add_line(lines,&n,"SYSTEM","",1);
+     snprintf(buf,sizeof(buf),"%s",APP_VERSION);
+     add_line(lines,&n,"Version",buf,0);
++    add_line(lines,&n,"Config",get_storage_config_path(),0);
+ 
+     struct utsname u;
+     if(uname(&u)==0){
