@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.2**
+**0.2.3**
 
 ## Funktionen
 
@@ -26,7 +26,9 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - bei aktivierten Downloads werden URL, Zielpfad und TLS-/Client-Zertifikatsparameter unter `Einstellungen` nur lesend angezeigt
 - unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
-- USB-Mediatasten, Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
+- USB-/Headset-Mediatasten für Play/Pause, Stop und Trackwechsel
+- Headset-Mediatasten bleiben auch bei aktiver Tastensperre nutzbar
+- Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
 
 ## Projekt / Kontakt
 
@@ -39,6 +41,8 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - `X`: Systemmenü mit Einstellungen, Downloads, Button Debug, Beenden und Herunterfahren
 - `MID` (`EV_KEY 708`): Display an/aus
 - Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
+- `SELECT`: Tastensperre aktivieren; zum Entsperren wird die angezeigte zufällige Tastenfolge verwendet
+- Bei aktiver Tastensperre bleiben die über `media_keys` erkannten Headset-/USB-Mediatasten aktiv. Die Sperre betrifft weiterhin die Bedienelemente des Geräts.
 
 ## Konfiguration
 
@@ -176,6 +180,6 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-**0.2.2** ersetzt `sudo poweroff` durch `systemd-logind` über D-Bus/`busctl`. Die Berechtigung wird gezielt über Polkit auf die PowerOff-Aktionen beschränkt.
+**0.2.3** trennt die Tastensperre von den externen Mediatasten: Controller-/Gerätetasten bleiben gesperrt, während Headset-/USB-Mediatasten weiterhin Play/Pause, Stop und Trackwechsel steuern können.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
