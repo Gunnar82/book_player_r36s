@@ -57,6 +57,13 @@ void player_render(ScreenContext *c){
  double pos=get_position(*c->base_position,*c->started_ticks,*c->paused);if(pos<0)pos=0;
  double pct=*c->duration>0?(pos/ *c->duration)*100.0:0;if(pct>100)pct=100;
  char ptxt[64];format_time(pos,ptxt,sizeof(ptxt));
+ char battery[64],vol[64];
+ if(c->battery_percent&&*c->battery_percent>=0){
+  snprintf(battery,sizeof(battery),"Akku: %d %% %s",*c->battery_percent,(c->battery_charging&&*c->battery_charging==1)?"(laedt)":"");
+ }else snprintf(battery,sizeof(battery),"Akku: --");
+ snprintf(vol,sizeof(vol),"Lautstaerke: %d %%",(volume*100)/MIX_MAX_VOLUME);
+ draw_text(c->renderer,c->font,battery,20,20,c->gray);
+ draw_text_right(c->renderer,c->font,vol,SCREEN_W-20,20,c->gray);
  draw_text(c->renderer,c->font,c->book_names[*c->book_index],20,50,c->gray);
  draw_text(c->renderer,c->font,c->tracks[*c->track_index].name,20,100,c->selected);
  char tr[64];snprintf(tr,sizeof(tr),"Track %d / %d",*c->track_index+1,*c->track_count);draw_text(c->renderer,c->font,tr,20,142,c->white);
