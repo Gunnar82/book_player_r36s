@@ -345,7 +345,7 @@ int main(int argc, char **argv)
             idle_timer_last_tick = SDL_GetTicks();
         }
 
-        if (!locked && screen != SCREEN_BUTTON_DEBUG) {
+        if (screen != SCREEN_BUTTON_DEBUG) {
             for (int mi = 0; mi < media_action_count; mi++) {
                 MediaKeyAction action = media_actions[mi];
                 if (action == MEDIA_KEY_PREVIOUS || action == MEDIA_KEY_NEXT) {
