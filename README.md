@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.3**
+**0.2.4**
 
 ## Funktionen
 
@@ -23,6 +23,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Lautstärke, Audio-/ALSA-Ausgabe, LED-GPIO und LED-Test unter `Einstellungen`
 - Downloads aus nginx-XML-Listings, standardmäßig deaktiviert
 - HTTP/HTTPS mit optionaler eigener CA und optionalen Client-Zertifikaten
+- Mehrfachauswahl im Downloadbrowser; ausgewählte Ordner werden rekursiv mit allen Unterordnern und Dateien geladen
 - bei aktivierten Downloads werden URL, Zielpfad und TLS-/Client-Zertifikatsparameter unter `Einstellungen` nur lesend angezeigt
 - unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
@@ -43,6 +44,18 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
 - `SELECT`: Tastensperre aktivieren; zum Entsperren wird die angezeigte zufällige Tastenfolge verwendet
 - Bei aktiver Tastensperre bleiben die über `media_keys` erkannten Headset-/USB-Mediatasten aktiv. Die Sperre betrifft weiterhin die Bedienelemente des Geräts.
+
+### Downloadbrowser
+
+- `A`: ausgewählten Ordner öffnen
+- `B`: einen Ordner höher; im Basisverzeichnis zurück ins Systemmenü
+- `Y`: aktuellen Ordner oder aktuelle Datei markieren bzw. Markierung entfernen
+- `X`: alle markierten Einträge herunterladen
+- D-Pad/Analogstick: Auswahl bewegen
+- `L1`/`R1`: seitenweise navigieren
+- `L2`/`R2`: zum Anfang/Ende springen
+
+Markierungen bleiben beim Navigieren durch andere Remote-Ordner erhalten. Dadurch können beispielsweise mehrere Hörspielordner eines Autors ausgewählt und anschließend gemeinsam mit `X` geladen werden. Wird ein übergeordneter Ordner markiert, wird er rekursiv traversiert und vollständig heruntergeladen.
 
 ## Konfiguration
 
@@ -85,14 +98,25 @@ Bei aktivierten Downloads werden zusätzlich `base_url`, `target_path`, `verify_
 
 Der Browser erwartet nginx-XML-Listings mit `<list>`, `<directory>` und `<file>`. Downloads werden zunächst als `.part` gespeichert und nach erfolgreichem Abschluss umbenannt.
 
-Die lokale Ordnerstruktur wird relativ zu `base_url` gespiegelt. Der in `base_url` enthaltene Pfad selbst wird nicht lokal angelegt. Beispiel:
+Die lokale Ordnerstruktur wird relativ zu `base_url` gespiegelt. Der in `base_url` enthaltene Pfad selbst wird nicht lokal angelegt. Das gilt auch für rekursiv ausgewählte Ordner. Beispiel:
 
 ```text
 base_url=https://server.example/gunnar/
 target_path=/roms/hoerspiele
-remote: Hörspiele/Autor/Buch/01.mp3
-lokal:  /roms/hoerspiele/Hörspiele/Autor/Buch/01.mp3
+remote: Hörspiele/Sebastian Fitzek/Der Insasse/01.mp3
+lokal:  /roms/hoerspiele/Hörspiele/Sebastian Fitzek/Der Insasse/01.mp3
 ```
+
+Beispiel für Mehrfachauswahl:
+
+```text
+Sebastian Fitzek/
+[x] Der Insasse/
+[ ] Das Paket/
+[x] Die Therapie/
+```
+
+Nach `X` werden nur `Der Insasse` und `Die Therapie` rekursiv heruntergeladen. Wird stattdessen bereits eine Ebene höher `Sebastian Fitzek/` markiert, werden alle darunterliegenden Hörspiele geladen.
 
 ## Systemberechtigungen
 
@@ -180,6 +204,6 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-**0.2.3** trennt die Tastensperre von den externen Mediatasten: Controller-/Gerätetasten bleiben gesperrt, während Headset-/USB-Mediatasten weiterhin Play/Pause, Stop und Trackwechsel steuern können.
+**0.2.4** erweitert den Downloadbrowser um eine persistente Mehrfachauswahl. Dateien und Ordner können mit `Y` markiert werden; `X` lädt die gesamte Auswahl. Markierte Ordner werden rekursiv inklusive aller Unterordner und Dateien heruntergeladen, wobei die Struktur relativ zu `base_url` erhalten bleibt.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
