@@ -6,7 +6,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.0-dev5**
+**0.2.0-dev6**
 
 ## Funktionen
 
@@ -23,6 +23,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Lautstärke, Audio-/ALSA-Ausgabe, LED-GPIO und LED-Test unter `Einstellungen`
 - Downloads aus nginx-XML-Listings, standardmäßig deaktiviert
 - HTTP/HTTPS mit optionaler eigener CA und optionalen Client-Zertifikaten
+- bei aktivierten Downloads werden URL, Zielpfad und TLS-/Client-Zertifikatsparameter unter `Einstellungen` nur lesend angezeigt
 - unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
 - USB-Mediatasten, Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
@@ -73,6 +74,8 @@ client_key_password=
 `Shutdown nach Tracks` und `Shutdown am Ende` sind **nicht persistent**. Beide starten bei jedem Programmstart mit `Aus` und gelten nur für die aktuelle Sitzung. `Shutdown am Ende` hat während der Sitzung Vorrang vor `repeat_book`.
 
 Downloads sind standardmäßig deaktiviert. Unter `Einstellungen` kann `Downloads` persistent auf `An` gestellt werden. Nur dann ist der Punkt `Downloads` im Systemmenü aktiv. URL, Zielpfad und TLS-Parameter werden direkt aus `config.ini` gelesen.
+
+Ab `0.2.0-dev6` werden bei aktivierten Downloads zusätzlich `base_url`, `target_path`, `verify_peer`, `verify_host`, `ca_cert`, `client_cert` und `client_key` im Einstellungsmenü angezeigt. Diese Werte sind dort reine Information und werden weiterhin ausschließlich über `config.ini` geändert. Bei `client_key_password` wird aus Sicherheitsgründen nur angezeigt, ob ein Passwort gesetzt ist.
 
 `base_url` darf HTTP oder HTTPS verwenden. Bei HTTPS sind Zertifikats- und Hostprüfung standardmäßig aktiv. `ca_cert` kann auf eine eigene CA-Datei zeigen. Für mTLS können optional `client_cert` und `client_key` gesetzt werden; `client_key_password` ist nur erforderlich, wenn der private Key verschlüsselt ist.
 
