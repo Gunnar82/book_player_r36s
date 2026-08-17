@@ -6,7 +6,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.0-dev2**
+**0.2.0-dev3**
 
 ## Funktionen
 
@@ -130,7 +130,7 @@ Ein Verzeichnis mit Dateien bietet `[Ordner herunterladen]`. Downloads werden zu
 
 ### Entwicklungszweig / Patch-Stack
 
-`develop-0.2` basiert weiterhin auf dem stabilen 0.1.14-Quellstand. Die 0.2-Änderungen liegen unter `patches/` als Patch-Stack. Das Dockerfile wendet diese Patches vor dem Build automatisch an.
+`develop-0.2` basiert weiterhin auf dem stabilen 0.1.14-Quellstand. Die 0.2-Änderungen liegen unter `patches/` als Patch-Stack. Das Dockerfile wendet die Kern-, Storage- und UI-Patches immer an. Bereits direkt vorhandene neue Download-Dateien werden nicht noch einmal als New-File-Patch angelegt. Damit werden alle für den 0.2-Build nötigen Deklarationen und Screen-IDs zuverlässig eingebunden.
 
 ### ARM64-Build
 
