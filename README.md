@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.0**
+**0.2.1-dev1**
 
 ## Funktionen
 
@@ -12,6 +12,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - mehrere konfigurierbare Speicherpfade über `config.ini`
 - verschachtelte Hörspielordner mit `↵ Zurueck`
 - Wiedergabe-, Track- und Gesamtfortschritt mit Prozentanzeige im Fließtext
+- Akku- und Lautstärkeanzeige direkt auf dem Wiedergabebildschirm
 - standardmäßig Stop am Ende des Hörspiels, optional Wiederholung von vorn
 - Sleep- und Idle-Timer
 - Herunterfahren nach N vollständig abgespielten Tracks
@@ -125,7 +126,7 @@ sudo visudo -cf /etc/sudoers.d/hoerspiel-player
 
 ## ARM64-Build
 
-DarkOS läuft auf AArch64. Version 0.2 wird für `linux/arm64` gebaut und verwendet auf dem Gerät die installierten AArch64-Systembibliotheken. Es wird kein eigener `lib/`-Ordner aus Docker mit ausgeliefert.
+DarkOS läuft auf AArch64. Die 0.2-Serie wird für `linux/arm64` gebaut und verwendet auf dem Gerät die installierten AArch64-Systembibliotheken. Es wird kein eigener `lib/`-Ordner aus Docker mit ausgeliefert.
 
 Seit 0.2 liegen alle Änderungen vollständig in den Quelldateien; der frühere Patch-Stack wird nicht mehr beim Docker-Build angewendet.
 
@@ -148,4 +149,4 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-Der bisherige Entwicklungsstand `0.2.0-dev6` wurde als **0.2.0** nach `main` übernommen. Weitere Entwicklungsänderungen sollten wieder auf einem separaten Development-Branch erfolgen.
+`0.2.1-dev1` basiert auf dem stabilen 0.2.0-Stand. Akku- und Lautstärkeanzeige wurden auf dem Wiedergabebildschirm wiederhergestellt. Die Entwicklung erfolgt im Branch `develop-0.2.1`.
