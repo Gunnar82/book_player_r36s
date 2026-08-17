@@ -18,7 +18,7 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.2.1"' config.h && \
+RUN grep 'APP_VERSION "0.2.2"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'SCREEN_DOWNLOADS' screens.h && \
     test -f download.c && \
