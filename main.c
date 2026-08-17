@@ -28,6 +28,8 @@
 #include "screens/sleeptimer.h"
 #include "screens/systeminfo.h"
 #include "screens/buttondebug.h"
+#include "screens/systemmenu.h"
+#include "screens/downloadbrowser.h"
 
 static const int LOCK_CANDIDATE_BUTTONS[] = {
     BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_Y,
@@ -80,6 +82,7 @@ int main(int argc, char **argv)
     setup_state_path();
     load_state();
     load_playback_config();
+    load_download_config();
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_JOYSTICK) != 0) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
@@ -289,7 +292,7 @@ int main(int argc, char **argv)
             }
 
             if (e.type == SDL_JOYBUTTONDOWN) {
-                if (e.jbutton.button == BUTTON_X) { toggle_display(); continue; }
+                if (e.jbutton.button == BUTTON_X) { screen = SCREEN_SYSTEM_MENU; continue; }
                 if (e.jbutton.button == BUTTON_START) {
                     if (!music && track_count > 0) {
                         music = play_track(tracks, track_index, base_position, &base_position, &started_ticks, &paused);
@@ -330,6 +333,8 @@ int main(int argc, char **argv)
                 case SCREEN_SLEEP_TIMER: sleeptimer_handle_event(&screen_ctx, &e); break;
                 case SCREEN_SYSTEM_INFO: systeminfo_handle_event(&screen_ctx, &e); break;
                 case SCREEN_BUTTON_DEBUG: buttondebug_handle_event(&screen_ctx, &e); break;
+                case SCREEN_SYSTEM_MENU: systemmenu_handle_event(&screen_ctx, &e); break;
+                case SCREEN_DOWNLOADS: downloadbrowser_handle_event(&screen_ctx, &e); break;
             }
         }
 
@@ -413,7 +418,6 @@ int main(int argc, char **argv)
             }
         }
 
-        /* ---------------- Automatischer Trackwechsel ---------------- */
         if (music && !paused && !Mix_PlayingMusic()) {
             int pi = ensure_book_progress(book_paths[book_index]);
             int was_last_track = (track_index >= track_count - 1);
@@ -424,7 +428,6 @@ int main(int argc, char **argv)
                 touch_book_progress(pi);
             }
 
-            /* Sleep: nach N vollstaendig abgespielten Tracks herunterfahren. */
             if (shutdown_after_tracks != shutdown_tracks_setting_seen) {
                 shutdown_tracks_setting_seen = shutdown_after_tracks;
                 shutdown_tracks_remaining = shutdown_after_tracks;
@@ -441,7 +444,6 @@ int main(int argc, char **argv)
             }
 
             if (was_last_track) {
-                /* Sleep am Hoerspielende hat Vorrang vor Wiederholen. */
                 if (shutdown_at_book_end) {
                     Mix_FreeMusic(music);
                     music = NULL;
@@ -579,6 +581,8 @@ int main(int argc, char **argv)
                 case SCREEN_SLEEP_TIMER: sleeptimer_render(&screen_ctx); break;
                 case SCREEN_SYSTEM_INFO: systeminfo_render(&screen_ctx); break;
                 case SCREEN_BUTTON_DEBUG: buttondebug_render(&screen_ctx); break;
+                case SCREEN_SYSTEM_MENU: systemmenu_render(&screen_ctx); break;
+                case SCREEN_DOWNLOADS: downloadbrowser_render(&screen_ctx); break;
             }
         }
 

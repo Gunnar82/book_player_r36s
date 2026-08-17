@@ -1,10 +1,14 @@
 #include "systemmenu.h"
 #include "../ui.h"
+#include "../storage.h"
+#include "downloadbrowser.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 static int selection = 0;
 static const char *items[] = {
     "Einstellungen",
+    "Downloads",
     "Button Debug",
     "Beenden",
     "Herunterfahren"
@@ -22,9 +26,15 @@ static void activate(ScreenContext *c)
 {
     switch (selection) {
         case 0: *c->screen = SCREEN_SYSTEM_INFO; break;
-        case 1: *c->screen = SCREEN_BUTTON_DEBUG; break;
-        case 2: *c->running = 0; break;
-        case 3:
+        case 1:
+            if (downloads_enabled) {
+                downloadbrowser_reset();
+                *c->screen = SCREEN_DOWNLOADS;
+            }
+            break;
+        case 2: *c->screen = SCREEN_BUTTON_DEBUG; break;
+        case 3: *c->running = 0; break;
+        case 4:
             c->shutdown_fn(c->music);
             *c->running = 0;
             break;
@@ -60,8 +70,12 @@ void systemmenu_render(ScreenContext *c)
 
     int y = 90;
     for (int i = 0; i < ITEM_COUNT; i++) {
-        SDL_Color col = (i == selection) ? c->selected : c->white;
-        draw_text(c->renderer, c->font, items[i], 45, y, col);
+        int disabled = (i == 1 && !downloads_enabled);
+        SDL_Color col = disabled ? c->gray : ((i == selection) ? c->selected : c->white);
+        char label[128];
+        if (disabled) snprintf(label,sizeof(label),"%s  [deaktiviert]",items[i]);
+        else snprintf(label,sizeof(label),"%s",items[i]);
+        draw_text(c->renderer, c->font, label, 45, y, col);
         y += 42;
     }
 
