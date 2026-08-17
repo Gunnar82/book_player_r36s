@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.4**
+**0.2.5**
 
 ## Funktionen
 
@@ -47,8 +47,10 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ### Downloadbrowser
 
+Im Downloadbrowser haben `X` und `Y` bewusst eine lokale Funktion. Die globale Belegung für Systemmenü bzw. Hörspielauswahl wird dort nicht ausgeführt.
+
 - `A`: ausgewählten Ordner öffnen
-- `B`: einen Ordner höher; im Basisverzeichnis zurück ins Systemmenü
+- `B`: einen Ordner höher; im Basisverzeichnis direkt zurück zum Wiedergabe-/Hauptbildschirm
 - `Y`: aktuellen Ordner oder aktuelle Datei markieren bzw. Markierung entfernen
 - `X`: alle markierten Einträge herunterladen
 - D-Pad/Analogstick: Auswahl bewegen
@@ -204,6 +206,6 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-**0.2.4** erweitert den Downloadbrowser um eine persistente Mehrfachauswahl. Dateien und Ordner können mit `Y` markiert werden; `X` lädt die gesamte Auswahl. Markierte Ordner werden rekursiv inklusive aller Unterordner und Dateien heruntergeladen, wobei die Struktur relativ zu `base_url` erhalten bleibt.
+**0.2.5** behebt die globale Tastenbelegung im Downloadbrowser: `X` und `Y` werden dort nicht mehr vorher von `main.c` abgefangen. Zusätzlich führt `B` im Download-Basisverzeichnis direkt zurück zum Wiedergabe-/Hauptbildschirm.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
