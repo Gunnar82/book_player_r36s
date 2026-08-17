@@ -336,3 +336,76 @@ int remote_download_files(const char *relative_path,const RemoteEntry *entries,i
     sync();
     return file_count;
 }
+
+static int download_one_selected_file(const char *path,DownloadProgressFn progress,void *userdata,char *error,size_t error_size)
+{
+    char parent[REMOTE_PATH_LEN];
+    char name[REMOTE_NAME_LEN];
+    snprintf(parent,sizeof(parent),"%s",path?path:"");
+    char *slash=strrchr(parent,'/');
+    if(slash){
+        snprintf(name,sizeof(name),"%s",slash+1);
+        *slash='\0';
+    }else{
+        snprintf(name,sizeof(name),"%s",parent);
+        parent[0]='\0';
+    }
+    if(!safe_component(name)){snprintf(error,error_size,"Ungueltiger Dateipfad");return -1;}
+    RemoteEntry e={0};
+    e.type=REMOTE_FILE;
+    snprintf(e.name,sizeof(e.name),"%s",name);
+    return remote_download_files(parent,&e,1,progress,userdata,error,error_size);
+}
+
+static int download_directory_recursive(const char *path,DownloadProgressFn progress,void *userdata,char *error,size_t error_size)
+{
+    RemoteEntry entries[REMOTE_MAX_ENTRIES];
+    char listing_error[256]="";
+    int n=remote_fetch_listing(path,entries,REMOTE_MAX_ENTRIES,listing_error,sizeof(listing_error));
+    if(n<0){snprintf(error,error_size,"%s: %s",path&&path[0]?path:"/",listing_error);return -1;}
+
+    int total=0;
+    int files=0;
+    for(int i=0;i<n;i++)if(entries[i].type==REMOTE_FILE)files++;
+    if(files>0){
+        int rc=remote_download_files(path,entries,n,progress,userdata,error,error_size);
+        if(rc<0)return -1;
+        total+=rc;
+    }else{
+        char local_dir[REMOTE_PATH_LEN+1024];
+        if(path&&path[0])snprintf(local_dir,sizeof(local_dir),"%s/%s",download_target_path,path);
+        else snprintf(local_dir,sizeof(local_dir),"%s",download_target_path);
+        if(make_dirs(local_dir)!=0){snprintf(error,error_size,"Zielverzeichnis kann nicht angelegt werden: %s",local_dir);return -1;}
+    }
+
+    for(int i=0;i<n;i++){
+        if(entries[i].type!=REMOTE_DIRECTORY)continue;
+        char child[REMOTE_PATH_LEN];
+        if(path&&path[0])snprintf(child,sizeof(child),"%s/%s",path,entries[i].name);
+        else snprintf(child,sizeof(child),"%s",entries[i].name);
+        if(strlen(child)>=sizeof(child)-1){snprintf(error,error_size,"Remote-Pfad zu lang");return -1;}
+        int rc=download_directory_recursive(child,progress,userdata,error,error_size);
+        if(rc<0)return -1;
+        total+=rc;
+    }
+    return total;
+}
+
+int remote_download_selection(const RemoteSelection *selection,int selection_count,
+                              DownloadProgressFn progress,void *userdata,char *error,size_t error_size)
+{
+    if(error&&error_size)error[0]='\0';
+    if(!selection||selection_count<=0){snprintf(error,error_size,"Keine Auswahl");return -1;}
+    int total=0;
+    for(int i=0;i<selection_count;i++){
+        int rc;
+        if(selection[i].type==REMOTE_DIRECTORY)
+            rc=download_directory_recursive(selection[i].relative_path,progress,userdata,error,error_size);
+        else
+            rc=download_one_selected_file(selection[i].relative_path,progress,userdata,error,error_size);
+        if(rc<0)return -1;
+        total+=rc;
+    }
+    sync();
+    return total;
+}
