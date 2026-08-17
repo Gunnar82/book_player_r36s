@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.1**
+**0.2.2**
 
 ## Funktionen
 
@@ -17,6 +17,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Sleep- und Idle-Timer
 - Herunterfahren nach N vollständig abgespielten Tracks
 - Herunterfahren am Ende des Hörspiels
+- Herunterfahren über `systemd-logind`/D-Bus statt `sudo poweroff`
 - Display-Backlight und Helligkeit
 - Akku-, CPU-, RAM- und Temperaturanzeige
 - Lautstärke, Audio-/ALSA-Ausgabe, LED-GPIO und LED-Test unter `Einstellungen`
@@ -113,16 +114,42 @@ sudo udevadm settle
 
 Nach dem Hinzufügen von `ark` zur Gruppe `gpio` ist eine neue Anmeldung oder ein Neustart erforderlich.
 
-### Herunterfahren ohne Passwortabfrage
+### Herunterfahren über systemd-logind und Polkit
 
-```sudoers
-ark ALL=(root) NOPASSWD: /usr/sbin/poweroff
+Seit **0.2.2** verwendet der Player kein `sudo poweroff` mehr. Stattdessen ruft er über `busctl` die D-Bus-Methode `org.freedesktop.login1.Manager.PowerOff` von `systemd-logind` auf.
+
+Damit Benutzer `ark` ohne Passwortabfrage herunterfahren darf, wird einmalig eine eng begrenzte Polkit-Regel angelegt:
+
+`/etc/polkit-1/rules.d/50-hoerspiel-player.rules`:
+
+```javascript
+polkit.addRule(function(action, subject) {
+    if (subject.user == "ark" &&
+        (action.id == "org.freedesktop.login1.power-off" ||
+         action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+         action.id == "org.freedesktop.login1.power-off-ignore-inhibit")) {
+        return polkit.Result.YES;
+    }
+});
 ```
+
+Danach:
 
 ```sh
-sudo chmod 0440 /etc/sudoers.d/hoerspiel-player
-sudo visudo -cf /etc/sudoers.d/hoerspiel-player
+sudo systemctl restart polkit
 ```
+
+Ungefährlicher Funktionstest:
+
+```sh
+busctl call \
+  org.freedesktop.login1 \
+  /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager \
+  CanPowerOff
+```
+
+Mit passender Polkit-Regel sollte `s "yes"` zurückgegeben werden. Der Player verwendet für das eigentliche Herunterfahren einen nicht-interaktiven D-Bus-Aufruf. Die frühere `sudoers`-Regel für `/usr/sbin/poweroff` wird nicht mehr benötigt und kann entfernt werden.
 
 ## ARM64-Build
 
@@ -149,6 +176,6 @@ Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere
 
 ## Entwicklung
 
-**0.2.1** enthält den stabilen 0.2.0-Stand inklusive HTTPS/mTLS-Downloads und Konfigurationsanzeige. Zusätzlich sind Akku- und Lautstärkeanzeige auf dem Wiedergabebildschirm wiederhergestellt.
+**0.2.2** ersetzt `sudo poweroff` durch `systemd-logind` über D-Bus/`busctl`. Die Berechtigung wird gezielt über Polkit auf die PowerOff-Aktionen beschränkt.
 
-Ab 0.2.1 erfolgt die weitere Entwicklung direkt auf `main`.
+Die weitere Entwicklung erfolgt direkt auf `main`.
