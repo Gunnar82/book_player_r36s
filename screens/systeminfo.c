@@ -18,7 +18,7 @@ static const int LINE_H = 27;
 static const int TOP_Y = 58;
 static const int MAX_VISIBLE = 12;
 
-typedef struct { char label[64]; char value[160]; int heading; } InfoLine;
+typedef struct { char label[64]; char value[384]; int heading; } InfoLine;
 
 static void add_line(InfoLine *lines,int *n,const char *label,const char *value,int heading){
     if(*n>=64)return;
@@ -79,12 +79,27 @@ static void format_audio_output(char *out,size_t size){
     else snprintf(out,size,"--");
 }
 static int build_lines(ScreenContext *c,InfoLine *lines){
-    int n=0;char buf[160];
+    int n=0;char buf[384];
 
     /* Zuerst alles, was der Benutzer direkt aendern kann. */
-    add_line(lines,&n,"AUDIO / DISPLAY","",1);
+    add_line(lines,&n,"DOWNLOADS","",1);
     snprintf(buf,sizeof(buf),"<  %s  >",downloads_enabled?"An":"Aus");
     add_line(lines,&n,"Downloads",buf,0);
+
+    /* Download-Details sind bewusst nur Anzeige und nur bei aktivierten Downloads sichtbar. */
+    if(downloads_enabled){
+        add_line(lines,&n,"DOWNLOAD-KONFIG","",1);
+        add_line(lines,&n,"Base URL",download_base_url[0]?download_base_url:"--",0);
+        add_line(lines,&n,"Zielpfad",download_target_path[0]?download_target_path:"--",0);
+        add_line(lines,&n,"TLS Peer",download_verify_peer?"Pruefen":"Nicht pruefen",0);
+        add_line(lines,&n,"TLS Host",download_verify_host?"Pruefen":"Nicht pruefen",0);
+        add_line(lines,&n,"CA Zertifikat",download_ca_cert[0]?download_ca_cert:"System-CA",0);
+        add_line(lines,&n,"Client Zertifikat",download_client_cert[0]?download_client_cert:"--",0);
+        add_line(lines,&n,"Client Key",download_client_key[0]?download_client_key:"--",0);
+        add_line(lines,&n,"Key Passwort",download_client_key_password[0]?"gesetzt":"nicht gesetzt",0);
+    }
+
+    add_line(lines,&n,"AUDIO / DISPLAY","",1);
     snprintf(buf,sizeof(buf),"<  %d %%  >",(volume*100)/MIX_MAX_VOLUME);
     add_line(lines,&n,"Lautstaerke",buf,0);
 
