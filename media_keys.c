@@ -70,9 +70,9 @@ static MediaKeyAction map_key(unsigned int code)
         case KEY_NEXTSONG:
             return MEDIA_KEY_NEXT;
         case KEY_PLAYPAUSE:
+        case KEY_PLAYCD:
             return MEDIA_KEY_PLAY_PAUSE;
         case KEY_PLAY:
-        case KEY_PLAYCD:
             return MEDIA_KEY_PLAY;
         case KEY_PAUSE:
         case KEY_PAUSECD:
