@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.6**
+**0.2.7**
 
 ## Funktionen
 
@@ -13,6 +13,8 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - verschachtelte Hörspielordner mit `↵ Zurueck`
 - Wiedergabe-, Track- und Gesamtfortschritt mit Prozentanzeige im Fließtext
 - Akku- und Lautstärkeanzeige direkt auf dem Wiedergabebildschirm
+- aktiver Sleeptimer wird mit verbleibender Zeit auf dem Wiedergabebildschirm angezeigt
+- einstellbarer, persistenter Display-Inaktivitätstimer: Aus, 15 s, 30 s, 60 s, 2 min, 5 min oder 10 min
 - standardmäßig Stop am Ende des Hörspiels, optional Wiederholung von vorn
 - Sleep- und Idle-Timer
 - Herunterfahren nach N vollständig abgespielten Tracks
@@ -29,6 +31,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
 - GitHub- und Kontakt-Hinweis unter `Einstellungen`
 - USB-/Headset-Mediatasten für Play/Pause, Stop und Trackwechsel
+- `KEY_PLAYPAUSE` und `KEY_PLAYCD` (Linux-Keycode 200) werden beide als Play/Pause behandelt
 - Headset-Mediatasten bleiben auch bei aktiver Tastensperre nutzbar
 - Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
 
@@ -46,6 +49,20 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - `SELECT`: Tastensperre aktivieren; zum Entsperren wird die angezeigte zufällige Tastenfolge verwendet
 - Bei aktiver Tastensperre bleiben die über `media_keys` erkannten Headset-/USB-Mediatasten aktiv. Die Sperre betrifft weiterhin die Bedienelemente des Geräts.
 
+### Media-Keys
+
+Unter Linux werden unter anderem folgende evdev-Tasten unterstützt:
+
+- `KEY_PREVIOUSSONG`: vorheriger Track
+- `KEY_NEXTSONG`: nächster Track
+- `KEY_PLAYPAUSE`: Play/Pause
+- `KEY_PLAYCD` / Keycode `200`: Play/Pause
+- `KEY_PLAY`: Wiedergabe starten/fortsetzen
+- `KEY_PAUSE` / `KEY_PAUSECD`: pausieren
+- `KEY_STOP` / `KEY_STOPCD`: stoppen
+
+Damit funktionieren auch Geräte, die ihre zentrale Wiedergabetaste als `KEY_PLAYCD` statt `KEY_PLAYPAUSE` melden.
+
 ### Downloadbrowser
 
 Im Downloadbrowser haben `X` und `Y` bewusst eine lokale Funktion. Die globale Belegung für Systemmenü bzw. Hörspielauswahl wird dort nicht ausgeführt.
@@ -60,18 +77,19 @@ Im Downloadbrowser haben `X` und `Y` bewusst eine lokale Funktion. Die globale B
 
 Markierungen bleiben beim Navigieren durch andere Remote-Ordner erhalten. Dadurch können beispielsweise mehrere Hörspielordner eines Autors ausgewählt und anschließend gemeinsam mit `X` geladen werden. Wird ein übergeordneter Ordner markiert, wird er rekursiv traversiert und vollständig heruntergeladen.
 
-Vor dem eigentlichen rekursiven Download ermittelt der Player die Anzahl und die bekannte Gesamtgröße der ausgewählten Dateien. Dadurch zeigt der Downloadbildschirm den Fortschritt über die **gesamte Auswahl** und nicht nur über den gerade bearbeiteten Ordner. Angezeigt werden:
+Vor dem eigentlichen rekursiven Download ermittelt der Player die Anzahl und die bekannte Gesamtgröße der ausgewählten Dateien. Dadurch zeigt der Downloadbildschirm den Fortschritt über die **gesamte Auswahl** und nicht nur über den gerade bearbeiteten Ordner. Angezeigt werden die aktuelle Datei und die komplette Auswahl jeweils mit Fortschrittsbalken, Prozentwert und geschätzter Restzeit. Direkt zu Beginn eines Downloads wird zunächst `--:--` angezeigt, bis genügend Messdaten für eine Schätzung vorliegen.
 
-- aktuelle Datei mit Dateinummer, Größe, Prozentwert und eigenem Fortschrittsbalken
-- geschätzte Restzeit der aktuellen Datei
-- Gesamtfortschritt der kompletten Auswahl mit Größe, Prozentwert und eigenem Fortschrittsbalken
-- geschätzte Restzeit der kompletten Auswahl
+## Einstellungen und Timer
 
-Die Restzeiten sind Schätzwerte auf Basis der seit Beginn der jeweiligen Datei bzw. des gesamten Downloads gemessenen mittleren Übertragungsrate. Direkt zu Beginn eines Downloads wird deshalb zunächst `--:--` angezeigt, bis genügend Messdaten vorliegen.
+Der **Sleeptimer** wird weiterhin im Einstellungsmenü konfiguriert. Ist er aktiv, erscheint seine verbleibende Zeit zusätzlich auf dem Wiedergabebildschirm. Ist er deaktiviert, wird dort keine Sleeptimer-Zeile angezeigt.
+
+Unter `Einstellungen` steht außerdem **Display aus nach** zur Verfügung. Mit Links/Rechts kann zwischen `Aus`, `15 s`, `30 s`, `60 s`, `2 min`, `5 min` und `10 min` gewechselt werden. Nach Ablauf der gewählten Zeit ohne Bedienung wird nur das Backlight abgeschaltet; die Wiedergabe läuft weiter. Die nächste Geräteingabe schaltet das Display wieder ein und wird dabei nur zum Aufwecken verwendet. Der Wert wird zusammen mit den lokalen Player-Einstellungen in `~/.hoerspiel_player_state` gespeichert.
+
+Der **Idle-Timer** ist davon unabhängig: Er kann den Player bei ausbleibender Wiedergabe bzw. Bedienung vollständig herunterfahren. Display-Timeout und Idle-Timer sind daher bewusst zwei verschiedene Funktionen.
 
 ## Konfiguration
 
-`config.ini` liegt im selben Verzeichnis wie `hoerspiel_player`. Der Player ermittelt diesen Pfad über `/proc/self/exe`; unter `Einstellungen` wird der daraus resultierende absolute Pfad angezeigt. Dadurch ist sofort sichtbar, welche Datei tatsächlich verwendet wird.
+`config.ini` liegt im selben Verzeichnis wie `hoerspiel_player`. Der Player ermittelt diesen Pfad über `/proc/self/exe`; unter `Einstellungen` wird der daraus resultierende absolute Pfad angezeigt.
 
 ```ini
 [storage]
@@ -98,9 +116,7 @@ client_key=
 client_key_password=
 ```
 
-`repeat_book=0` ist der Standard. Mit `repeat_book=1` beginnt das Hörspiel nach dem letzten Track wieder bei Track 1. **Nur diese Wiedergabeoption ist persistent.**
-
-`Shutdown nach Tracks` und `Shutdown am Ende` sind **nicht persistent**. Beide starten bei jedem Programmstart mit `Aus` und gelten nur für die aktuelle Sitzung. `Shutdown am Ende` hat während der Sitzung Vorrang vor `repeat_book`.
+Mit `repeat_book=1` beginnt das Hörspiel nach dem letzten Track wieder bei Track 1. `repeat_book` wird in `config.ini` gespeichert. Lautstärke, Idle-Timer und Display-Inaktivitätstimer werden im lokalen Player-State gespeichert. `Shutdown nach Tracks` und `Shutdown am Ende` sind dagegen nicht persistent und gelten nur für die aktuelle Sitzung.
 
 Downloads sind standardmäßig deaktiviert. Unter `Einstellungen` kann `Downloads` persistent auf `An` gestellt werden. Nur dann ist der Punkt `Downloads` im Systemmenü aktiv. URL, Zielpfad und TLS-Parameter werden direkt aus `config.ini` gelesen.
 
@@ -108,27 +124,7 @@ Bei aktivierten Downloads werden zusätzlich `base_url`, `target_path`, `verify_
 
 `base_url` darf HTTP oder HTTPS verwenden. Bei HTTPS sind Zertifikats- und Hostprüfung standardmäßig aktiv. `ca_cert` kann auf eine eigene CA-Datei zeigen. Für mTLS können optional `client_cert` und `client_key` gesetzt werden; `client_key_password` ist nur erforderlich, wenn der private Key verschlüsselt ist. Bei öffentlichen Serverzertifikaten kann `ca_cert` leer bleiben, wenn die System-CA von DarkOS das Zertifikat bereits vertraut.
 
-Der Browser erwartet nginx-XML-Listings mit `<list>`, `<directory>` und `<file>`. Downloads werden zunächst als `.part` gespeichert und nach erfolgreichem Abschluss umbenannt.
-
-Die lokale Ordnerstruktur wird relativ zu `base_url` gespiegelt. Der in `base_url` enthaltene Pfad selbst wird nicht lokal angelegt. Das gilt auch für rekursiv ausgewählte Ordner. Beispiel:
-
-```text
-base_url=https://server.example/gunnar/
-target_path=/roms/hoerspiele
-remote: Hörspiele/Sebastian Fitzek/Der Insasse/01.mp3
-lokal:  /roms/hoerspiele/Hörspiele/Sebastian Fitzek/Der Insasse/01.mp3
-```
-
-Beispiel für Mehrfachauswahl:
-
-```text
-Sebastian Fitzek/
-[x] Der Insasse/
-[ ] Das Paket/
-[x] Die Therapie/
-```
-
-Nach `X` werden nur `Der Insasse` und `Die Therapie` rekursiv heruntergeladen. Wird stattdessen bereits eine Ebene höher `Sebastian Fitzek/` markiert, werden alle darunterliegenden Hörspiele geladen.
+Die lokale Ordnerstruktur wird relativ zu `base_url` gespiegelt. Der in `base_url` enthaltene Pfad selbst wird nicht lokal angelegt. Das gilt auch für rekursiv ausgewählte Ordner.
 
 ## Systemberechtigungen
 
@@ -152,13 +148,9 @@ sudo udevadm trigger --action=add --subsystem-match=gpio
 sudo udevadm settle
 ```
 
-Nach dem Hinzufügen von `ark` zur Gruppe `gpio` ist eine neue Anmeldung oder ein Neustart erforderlich.
-
 ### Herunterfahren über systemd-logind und Polkit
 
 Seit **0.2.2** verwendet der Player kein `sudo poweroff` mehr. Stattdessen ruft er über `busctl` die D-Bus-Methode `org.freedesktop.login1.Manager.PowerOff` von `systemd-logind` auf.
-
-Damit Benutzer `ark` ohne Passwortabfrage herunterfahren darf, wird einmalig eine eng begrenzte Polkit-Regel angelegt:
 
 `/etc/polkit-1/rules.d/50-hoerspiel-player.rules`:
 
@@ -189,13 +181,11 @@ busctl call \
   CanPowerOff
 ```
 
-Mit passender Polkit-Regel sollte `s "yes"` zurückgegeben werden. Der Player verwendet für das eigentliche Herunterfahren einen nicht-interaktiven D-Bus-Aufruf. Die frühere `sudoers`-Regel für `/usr/sbin/poweroff` wird nicht mehr benötigt und kann entfernt werden.
+Mit passender Polkit-Regel sollte `s "yes"` zurückgegeben werden.
 
 ## ARM64-Build
 
 DarkOS läuft auf AArch64. Die 0.2-Serie wird für `linux/arm64` gebaut und verwendet auf dem Gerät die installierten AArch64-Systembibliotheken. Es wird kein eigener `lib/`-Ordner aus Docker mit ausgeliefert.
-
-Seit 0.2 liegen alle Änderungen vollständig in den Quelldateien; der frühere Patch-Stack wird nicht mehr beim Docker-Build angewendet.
 
 ```sh
 docker buildx build \
@@ -212,10 +202,8 @@ docker rm hoerspiel-build-temp
 
 Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere die Paketinstallation aus dem Dockerfile im Buildx-Cache.
 
-0.2 benötigt zusätzlich `libcurl` mit TLS-Unterstützung. Das Dockerfile installiert zum Kompilieren `libcurl4-openssl-dev` und `ca-certificates`. Auf DarkOS wird die native AArch64-`libcurl.so.4` des Systems verwendet.
-
 ## Entwicklung
 
-**0.2.6** erweitert die Downloadanzeige um getrennte Fortschrittsbalken und Restzeit-Schätzungen für die aktuelle Datei und die komplette Auswahl. Für rekursive Mehrfachdownloads wird vor dem Download die gesamte Auswahl vermessen, damit Dateizähler, Gesamtgröße, Gesamtprozent und Gesamt-Restzeit über Ordnergrenzen hinweg korrekt weiterlaufen.
+**0.2.7** stellt den automatischen Display-Timeout wieder her und macht ihn im Einstellungsmenü persistent konfigurierbar. Ein aktiver Sleeptimer wird nun zusätzlich auf dem Wiedergabebildschirm angezeigt. Außerdem werden sowohl `KEY_PLAYPAUSE` als auch `KEY_PLAYCD` (Keycode 200) als Play/Pause akzeptiert.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
