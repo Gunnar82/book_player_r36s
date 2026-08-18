@@ -18,6 +18,7 @@ typedef enum {
 
 typedef struct {
     int fds[MEDIA_KEYS_MAX_DEVICES];
+    unsigned char media_capable[MEDIA_KEYS_MAX_DEVICES];
     uint64_t last_scan_ms;
 } MediaKeys;
 
