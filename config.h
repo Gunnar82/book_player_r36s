@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #define APP_NAME "Hoerspiel Player"
-#define APP_VERSION "0.2.6"
+#define APP_VERSION "0.2.7"
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define MAX_BOOKS 200
@@ -62,9 +62,6 @@
 #define SEEK_STEP 15.0
 #define SAVE_INTERVAL_MS 5000
 #define VOLUME_STEP 8
-/* Zeit ohne Eingabe, nach der das Display automatisch abschaltet.
-   Beliebig anpassbar, z.B. 30000 = 30s, 120000 = 2 Minuten. */
-#define DISPLAY_TIMEOUT_MS 60000
 /* Sleeptimer: Standardwert und Schrittweite beim Einstellen (in Minuten). */
 #define SLEEP_DEFAULT_MINUTES 30
 #define SLEEP_STEP_MINUTES     2
