@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.8**
+**0.2.9**
 
 ## Funktionen
 
@@ -18,8 +18,10 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - Sleep- und Idle-Timer
 - Herunterfahren über `systemd-logind`/D-Bus
 - Downloads aus nginx-XML-Listings mit HTTPS/mTLS, Mehrfachauswahl, rekursiven Ordnerdownloads, Datei-/Gesamtfortschritt und Restzeitschätzung
-- USB-/Headset-Mediatasten für Play/Pause, Stop und Trackwechsel
-- `KEY_PLAYPAUSE` und `KEY_PLAYCD` (Linux-Keycode 200) werden beide als Play/Pause behandelt
+- USB-/Headset-Mediatasten für Play/Pause, Play, Pause, Stop und Trackwechsel
+- `KEY_PLAYPAUSE` wird als Play/Pause behandelt
+- `KEY_PLAYCD` (Linux-Keycode 200) und `KEY_PLAY` werden ausschließlich als Play behandelt
+- `KEY_PAUSECD` und `KEY_PAUSE` werden ausschließlich als Pause behandelt
 - Headset-Mediatasten bleiben auch bei aktiver Tastensperre nutzbar
 - integrierter MPRIS2-Player über D-Bus
 - integrierte BlueZ-Media-Registrierung für Bluetooth/AVRCP ohne separates `mpris-proxy`-Programm
@@ -44,10 +46,12 @@ Unter Linux werden unter anderem folgende evdev-Tasten unterstützt:
 - `KEY_PREVIOUSSONG`: vorheriger Track
 - `KEY_NEXTSONG`: nächster Track
 - `KEY_PLAYPAUSE`: Play/Pause
-- `KEY_PLAYCD` / Keycode `200`: Play/Pause
-- `KEY_PLAY`: Wiedergabe starten/fortsetzen
-- `KEY_PAUSE` / `KEY_PAUSECD`: pausieren
-- `KEY_STOP` / `KEY_STOPCD`: stoppen
+- `KEY_PLAYCD` / Keycode `200`: Play
+- `KEY_PLAY`: Play
+- `KEY_PAUSE` / `KEY_PAUSECD`: Pause
+- `KEY_STOP` / `KEY_STOPCD`: Stop
+
+Damit werden getrennte Play- und Pause-Tasten nicht mehr wie ein Toggle behandelt. Insbesondere ist `KEY_PLAYCD` seit 0.2.9 kein Play/Pause mehr.
 
 ## MPRIS / Bluetooth / Navi
 
@@ -58,9 +62,9 @@ Der Player versucht beim Start zwei Wege parallel:
 1. Auf einem vorhandenen Benutzer-D-Bus wird `org.mpris.MediaPlayer2.HoerspielPlayer` unter `/org/mpris/MediaPlayer2` bereitgestellt.
 2. Auf dem System-D-Bus wird eine BlueZ-Media-Anwendung exportiert. Sobald ein Bluetooth-Adapter mit `org.bluez.Media1` verfügbar ist, registriert sich der Player automatisch über `RegisterApplication`.
 
-Fehlt beim Programmstart ein Bluetooth-Adapter, ist das **kein Fehler**. Der Player läuft normal weiter und versucht die BlueZ-Registrierung regelmäßig erneut. Der Bluetooth-Stick kann deshalb auch erst später vorhanden sein; für den ersten Navi-Test ist es am einfachsten, den Stick einzustecken und anschließend den Player zu starten.
+Fehlt beim Programmstart ein Bluetooth-Adapter, ist das kein Fehler. Der Player läuft normal weiter und versucht die BlueZ-Registrierung regelmäßig erneut.
 
-Über MPRIS/BlueZ werden aktuell folgende Steuerbefehle in dieselbe interne Media-Key-Logik eingespeist wie USB-/Headset-Tasten:
+Über MPRIS/BlueZ werden folgende Steuerbefehle getrennt verarbeitet:
 
 - Play
 - Pause
@@ -69,9 +73,11 @@ Fehlt beim Programmstart ein Bluetooth-Adapter, ist das **kein Fehler**. Der Pla
 - nächster Track
 - vorheriger Track
 
-Zusätzlich werden Wiedergabestatus, aktueller Trackname, Hörspielname, Tracknummer, Tracklänge, Position und Lautstärke veröffentlicht. Seek über MPRIS ist derzeit bewusst nicht freigegeben.
+Wichtig für die Fehlersuche: Der Bildschirm **Button Debug** zeigt evdev-/SDL-Ereignisse. Bluetooth-/MPRIS-Kommandos kommen dagegen über D-Bus/BlueZ und erscheinen deshalb dort nicht als `KEY_PLAYCD`, `KEY_PAUSECD` usw. Die BlueZ-/MPRIS-Seite ruft direkt die jeweiligen Methoden `Play`, `Pause`, `PlayPause`, `Next`, `Previous` oder `Stop` auf.
 
-Die BlueZ-Integration basiert auf `libsystemd`/`sd-bus`. Auf dem getesteten DarkOS ist `libsystemd.so` bereits als AArch64-Systembibliothek vorhanden. Nur der Docker-Build benötigt `libsystemd-dev`, damit die Header beim Kompilieren verfügbar sind. Es wird keine zusätzliche `libsystemd` mit dem Player ausgeliefert.
+Zusätzlich werden Wiedergabestatus, aktueller Trackname, Hörspielname, Tracknummer, Tracklänge, Position und Lautstärke veröffentlicht. Seek über MPRIS ist derzeit nicht freigegeben.
+
+Die BlueZ-Integration basiert auf `libsystemd`/`sd-bus`. Auf dem getesteten DarkOS ist `libsystemd.so` bereits als AArch64-Systembibliothek vorhanden. Nur der Docker-Build benötigt `libsystemd-dev` für die Header.
 
 ### Test mit eingestecktem Bluetooth-Adapter
 
@@ -81,8 +87,6 @@ Nach dem Start des Players sollten im Log je nach Umgebung Meldungen wie diese e
 MPRIS: org.mpris.MediaPlayer2.HoerspielPlayer bereit.
 MPRIS/BlueZ: Media-Anwendung auf hci0 registriert.
 ```
-
-Falls kein Session-Bus existiert, kann die erste Meldung fehlen bzw. einen Hinweis auf den nicht nutzbaren Session-Bus liefern. Die BlueZ-Registrierung über den System-Bus ist davon unabhängig.
 
 Mit Adapter kann geprüft werden:
 
@@ -210,6 +214,6 @@ Für normale Builds kein `--no-cache` verwenden.
 
 ## Entwicklung
 
-**0.2.8** integriert MPRIS2 und eine direkte BlueZ-Media-Anwendung in den Player. Ein separates `mpris-proxy` ist damit für den vorgesehenen Navi-Test nicht mehr nötig. Die BlueZ-Registrierung wird dynamisch versucht und verhindert den Programmstart nicht, wenn kein Bluetooth-Adapter vorhanden ist.
+**0.2.9** trennt die evdev-Medientasten sauber: `KEY_PLAYPAUSE` bleibt ein Toggle, `KEY_PLAYCD`/`KEY_PLAY` führen nur Play aus und `KEY_PAUSECD`/`KEY_PAUSE` nur Pause. Die MPRIS-/BlueZ-Seite arbeitet ohnehin mit getrennten D-Bus-Methoden für Play, Pause und PlayPause; deshalb erscheinen Navi-Kommandos nicht im evdev-basierten Button-Debug.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
