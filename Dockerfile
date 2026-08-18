@@ -19,11 +19,12 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.2.10"' config.h && \
+RUN grep 'APP_VERSION "0.2.11"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'mpris_bridge_init' mpris_bridge.h && \
     grep -q 'media_feedback_show' media_feedback.h && \
+    grep -q 'media_capable' media_keys.h && \
     grep -q 'SCREEN_DOWNLOADS' screens.h && \
     test -f download.c && \
     test -f mpris_bridge.c && \
