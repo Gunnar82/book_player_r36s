@@ -4,6 +4,7 @@
 #include "types.h"
 extern int volume;
 extern int idle_timer_minutes;
+extern int display_timeout_seconds;
 void setup_state_path(void);
 void load_state(void);
 void save_state(void);
