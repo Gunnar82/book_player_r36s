@@ -80,8 +80,10 @@ void player_render(ScreenContext *c){
   snprintf(overall,sizeof(overall),"Gesamt: %s / %s  (%.0f %%)",bp,bt,book_pct);draw_text(c->renderer,c->font,overall,20,255,c->white);
   SDL_Rect bbar={20,286,580,6};SDL_SetRenderDrawColor(c->renderer,70,70,70,255);SDL_RenderFillRect(c->renderer,&bbar);SDL_Rect bfill=bbar;bfill.w=(int)(bbar.w*book_pct/100.0);SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&bfill);
  }else{draw_text(c->renderer,c->font,"Hoerspiel-Gesamtzeit nicht verfuegbar",20,255,c->gray);}
- if(idle_timer_minutes>0 && c->idle_timer_remaining_ms){Uint32 rem=*c->idle_timer_remaining_ms;char idle[64];int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);int playing=(*c->music && !*c->paused && Mix_PlayingMusic());snprintf(idle,sizeof(idle),playing?"Idle: %d:%02d (pausiert)":"Idle: %d:%02d",mins,secs);draw_text(c->renderer,c->font,idle,20,320,c->gray);}
- draw_text(c->renderer,c->font,*c->paused?"PAUSE":"Wiedergabe",20,350,c->white);
- draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: System   Y: Hoerspiele",20,390,c->gray);
- draw_text(c->renderer,c->font,"Hoch/Runter: +15s/-15s   Links/Rechts: Track -/+",20,420,c->gray);
+ int timer_y=315;
+ if(c->sleep_timer_active&&*c->sleep_timer_active&&c->sleep_timer_end_ticks){Uint32 now=SDL_GetTicks();Uint32 rem=*c->sleep_timer_end_ticks>now?*c->sleep_timer_end_ticks-now:0;char sleep[64];int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);snprintf(sleep,sizeof(sleep),"Sleeptimer: %d:%02d",mins,secs);draw_text(c->renderer,c->font,sleep,20,timer_y,c->gray);timer_y+=24;}
+ if(idle_timer_minutes>0 && c->idle_timer_remaining_ms){Uint32 rem=*c->idle_timer_remaining_ms;char idle[64];int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);int playing=(*c->music && !*c->paused && Mix_PlayingMusic());snprintf(idle,sizeof(idle),playing?"Idle: %d:%02d (pausiert)":"Idle: %d:%02d",mins,secs);draw_text(c->renderer,c->font,idle,20,timer_y,c->gray);}
+ draw_text(c->renderer,c->font,*c->paused?"PAUSE":"Wiedergabe",20,360,c->white);
+ draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: System   Y: Hoerspiele",20,395,c->gray);
+ draw_text(c->renderer,c->font,"Hoch/Runter: +15s/-15s   Links/Rechts: Track -/+",20,425,c->gray);
 }
