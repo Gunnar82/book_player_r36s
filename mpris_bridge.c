@@ -1,4 +1,5 @@
 #include "mpris_bridge.h"
+#include "media_feedback.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -30,12 +31,14 @@ static int method_action(sd_bus_message *m, void *userdata, sd_bus_error *ret_er
     (void)ret_error;
     MprisBridge *b=(MprisBridge*)userdata;
     const char *member=sd_bus_message_get_member(m);
-    if(!strcmp(member,"Next"))queue_action(b,MEDIA_KEY_NEXT);
-    else if(!strcmp(member,"Previous"))queue_action(b,MEDIA_KEY_PREVIOUS);
-    else if(!strcmp(member,"Pause"))queue_action(b,MEDIA_KEY_PAUSE);
-    else if(!strcmp(member,"PlayPause"))queue_action(b,MEDIA_KEY_PLAY_PAUSE);
-    else if(!strcmp(member,"Stop"))queue_action(b,MEDIA_KEY_STOP);
-    else if(!strcmp(member,"Play"))queue_action(b,MEDIA_KEY_PLAY);
+    MediaKeyAction action=MEDIA_KEY_NONE;
+    if(!strcmp(member,"Next"))action=MEDIA_KEY_NEXT;
+    else if(!strcmp(member,"Previous"))action=MEDIA_KEY_PREVIOUS;
+    else if(!strcmp(member,"Pause"))action=MEDIA_KEY_PAUSE;
+    else if(!strcmp(member,"PlayPause"))action=MEDIA_KEY_PLAY_PAUSE;
+    else if(!strcmp(member,"Stop"))action=MEDIA_KEY_STOP;
+    else if(!strcmp(member,"Play"))action=MEDIA_KEY_PLAY;
+    if(action!=MEDIA_KEY_NONE){queue_action(b,action);media_feedback_show(action,-1,member);}
     return sd_bus_reply_method_return(m,"");
 }
 
