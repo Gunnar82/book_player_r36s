@@ -52,9 +52,9 @@ static MediaKeyAction map_key(unsigned int code)
     switch (code) {
         case KEY_PREVIOUSSONG: return MEDIA_KEY_PREVIOUS;
         case KEY_NEXTSONG: return MEDIA_KEY_NEXT;
-        case KEY_PLAYPAUSE:
-        case KEY_PLAYCD: return MEDIA_KEY_PLAY_PAUSE;
-        case KEY_PLAY: return MEDIA_KEY_PLAY;
+        case KEY_PLAYPAUSE: return MEDIA_KEY_PLAY_PAUSE;
+        case KEY_PLAY:
+        case KEY_PLAYCD: return MEDIA_KEY_PLAY;
         case KEY_PAUSE:
         case KEY_PAUSECD: return MEDIA_KEY_PAUSE;
         case KEY_STOP:
