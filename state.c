@@ -15,6 +15,7 @@ int progress_count = 0;
 
 int volume = MIX_MAX_VOLUME;
 int idle_timer_minutes = 0;
+int display_timeout_seconds = 60;
 
 static char progress_file[512];
 
@@ -35,13 +36,22 @@ void load_state(void)
         if (!strncmp(line, "@settings\t", 10)) {
             int saved_volume = volume;
             int saved_idle = idle_timer_minutes;
-            if (sscanf(line + 10, "%d\t%d", &saved_volume, &saved_idle) >= 1) {
+            int saved_display_timeout = display_timeout_seconds;
+            int fields = sscanf(line + 10, "%d\t%d\t%d", &saved_volume, &saved_idle, &saved_display_timeout);
+            if (fields >= 1) {
                 volume = saved_volume;
                 if (volume < 0) volume = 0;
                 if (volume > MIX_MAX_VOLUME) volume = MIX_MAX_VOLUME;
+            }
+            if (fields >= 2) {
                 idle_timer_minutes = saved_idle;
                 if (idle_timer_minutes < 0) idle_timer_minutes = 0;
                 if (idle_timer_minutes > IDLE_TIMER_MAX_MINUTES) idle_timer_minutes = IDLE_TIMER_MAX_MINUTES;
+            }
+            if (fields >= 3) {
+                display_timeout_seconds = saved_display_timeout;
+                if (display_timeout_seconds < 0) display_timeout_seconds = 0;
+                if (display_timeout_seconds > 3600) display_timeout_seconds = 3600;
             }
             continue;
         }
@@ -66,7 +76,7 @@ void save_state(void)
 {
     FILE *fp = fopen(progress_file, "w");
     if (!fp) return;
-    fprintf(fp, "@settings\t%d\t%d\n", volume, idle_timer_minutes);
+    fprintf(fp, "@settings\t%d\t%d\t%d\n", volume, idle_timer_minutes, display_timeout_seconds);
     for (int i = 0; i < progress_count; i++) {
         fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\n", progress[i].path, progress[i].track,
                 progress[i].position, volume, progress[i].last_played);
