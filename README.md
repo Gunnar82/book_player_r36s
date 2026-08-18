@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.10**
+**0.2.11**
 
 ## Funktionen
 
@@ -24,6 +24,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - `KEY_PAUSECD` und `KEY_PAUSE` werden ausschließlich als Pause behandelt
 - Headset-Mediatasten bleiben auch bei aktiver Tastensperre nutzbar
 - drei Sekunden sichtbare Media-Key-Rückmeldung auf dem Wiedergabebildschirm
+- auch unbekannte Tasten eines Media-fähigen evdev-Geräts werden mit ihrem numerischen Linux-Keycode angezeigt
 - integrierter MPRIS2-Player über D-Bus
 - integrierte BlueZ-Media-Registrierung für Bluetooth/AVRCP ohne separates `mpris-proxy`-Programm
 
@@ -54,7 +55,11 @@ Unter Linux werden unter anderem folgende evdev-Tasten unterstützt:
 
 Damit werden getrennte Play- und Pause-Tasten nicht wie ein Toggle behandelt. `KEY_PLAYCD` ist seit 0.2.9 ausschließlich Play.
 
-Seit **0.2.10** erscheint bei einer erkannten Media-Taste für drei Sekunden eine große Rückmeldung auf dem Wiedergabebildschirm. Angezeigt werden die Aktion (`NEXT`, `PREVIOUS`, `PLAY`, `PAUSE`, `PLAY / PAUSE` oder `STOP`), ein großes Symbol und darunter die Herkunft des Kommandos. Bei evdev-Tasten wird der echte Linux-Keycode angezeigt, zum Beispiel `Keycode: 200`. Bei Bluetooth-/MPRIS-Kommandos existiert kein Linux-evdev-Keycode; dort wird stattdessen die empfangene MPRIS-Methode wie `Play`, `Pause`, `Next` oder `Previous` als Quelle angezeigt.
+Seit **0.2.10** erscheint bei einer erkannten Media-Taste für drei Sekunden eine große Rückmeldung auf dem Wiedergabebildschirm. Angezeigt werden die Aktion (`NEXT`, `PREVIOUS`, `PLAY`, `PAUSE`, `PLAY / PAUSE` oder `STOP`), ein großes Symbol und darunter die Herkunft des Kommandos.
+
+Seit **0.2.11** wird bei evdev-Ereignissen der numerische Linux-Keycode immer direkt unter dem Symbol angezeigt. Ist der Keycode noch keiner Player-Aktion zugeordnet, erscheint `?`, `UNBEKANNT` und trotzdem der echte Keycode. Damit dabei nicht jede normale R36S-Taste den Wiedergabebildschirm überflutet, werden unbekannte Codes nur von evdev-Geräten angezeigt, die sich über ihre Fähigkeiten als Media-Gerät erkennen lassen.
+
+Bei Bluetooth-/MPRIS-Kommandos existiert kein Linux-evdev-Keycode. Dort zeigt das Overlay deshalb `Keycode: --` und zusätzlich die empfangene MPRIS-Methode wie `Play`, `Pause`, `Next` oder `Previous`.
 
 ## MPRIS / Bluetooth / Navi
 
@@ -77,6 +82,8 @@ Fehlt beim Programmstart ein Bluetooth-Adapter, ist das kein Fehler. Der Player 
 - vorheriger Track
 
 Der Bildschirm **Button Debug** zeigt evdev-/SDL-Ereignisse. Bluetooth-/MPRIS-Kommandos kommen dagegen über D-Bus/BlueZ und erscheinen dort nicht als `KEY_PLAYCD`, `KEY_PAUSECD` usw. Seit 0.2.10 werden diese Kommandos dafür direkt auf dem Wiedergabebildschirm als Media-Rückmeldung angezeigt.
+
+Evdev-Erkennung und MPRIS/BlueZ laufen parallel. Normalerweise sind das getrennte Eingabewege. Ein Bluetooth-Stack kann theoretisch denselben physischen Tastendruck sowohl als evdev-Ereignis als auch als MPRIS/AVRCP-Kommando bereitstellen. Dann könnte dieselbe Aktion doppelt beim Player eintreffen. 0.2.11 unterdrückt solche Ereignisse bewusst noch nicht automatisch, weil eine pauschale Entprellung auch absichtliche schnelle Mehrfachdrücke verschlucken könnte. Das Overlay macht die Herkunft sichtbar: `Keycode: ... / Quelle: evdev` auf der einen Seite und `Keycode: -- / MPRIS: ...` auf der anderen. Damit lässt sich auf dem Zielgerät eindeutig feststellen, ob tatsächlich beide Wege gleichzeitig feuern, bevor eine gezielte Deduplizierung eingebaut wird.
 
 Zusätzlich werden Wiedergabestatus, aktueller Trackname, Hörspielname, Tracknummer, Tracklänge, Position und Lautstärke veröffentlicht. Seek über MPRIS ist derzeit nicht freigegeben.
 
@@ -217,6 +224,6 @@ Für normale Builds kein `--no-cache` verwenden.
 
 ## Entwicklung
 
-**0.2.10** ergänzt eine drei Sekunden sichtbare Media-Key-Rückmeldung auf dem Wiedergabebildschirm. Evdev-Kommandos zeigen dabei den echten Linux-Keycode; MPRIS-/BlueZ-Kommandos zeigen mangels evdev-Keycode die empfangene D-Bus-Methode. Die vorhandene Trennung von Play, Pause und Play/Pause bleibt erhalten.
+**0.2.11** erweitert die Media-Rückmeldung um rohe evdev-Keycodes. Auch noch nicht zugeordnete Tasten eines Media-fähigen Eingabegeräts werden drei Sekunden lang als `UNBEKANNT` mit ihrem numerischen Keycode angezeigt. MPRIS-Kommandos zeigen weiterhin die D-Bus-Methode, da dort kein Linux-Keycode existiert. Die parallelen evdev- und MPRIS-Eingabewege werden damit zugleich sichtbar, um eventuelle Doppelereignisse gezielt diagnostizieren zu können.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
