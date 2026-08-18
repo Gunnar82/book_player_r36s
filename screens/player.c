@@ -3,6 +3,7 @@
 #include "../state.h"
 #include "../backlight.h"
 #include "../ui.h"
+#include "../media_feedback.h"
 #include <stdlib.h>
 
 static void start_current(ScreenContext *c,double resume){
@@ -53,7 +54,7 @@ void player_handle_event(ScreenContext *c,const SDL_Event *e){
 }
 
 void player_render(ScreenContext *c){
- if(*c->track_count<=0){draw_text(c->renderer,c->font,"Keine Hoerspiele gefunden",20,100,c->gray);return;}
+ if(*c->track_count<=0){draw_text(c->renderer,c->font,"Keine Hoerspiele gefunden",20,100,c->gray);media_feedback_render(c->renderer,c->font,c->selected,c->gray);return;}
  double pos=get_position(*c->base_position,*c->started_ticks,*c->paused);if(pos<0)pos=0;
  double pct=*c->duration>0?(pos/ *c->duration)*100.0:0;if(pct>100)pct=100;
  char ptxt[64];format_time(pos,ptxt,sizeof(ptxt));
@@ -86,4 +87,5 @@ void player_render(ScreenContext *c){
  draw_text(c->renderer,c->font,*c->paused?"PAUSE":"Wiedergabe",20,360,c->white);
  draw_text(c->renderer,c->font,"A: Play/Pause   B: Zurueck   X: System   Y: Hoerspiele",20,395,c->gray);
  draw_text(c->renderer,c->font,"Hoch/Runter: +15s/-15s   Links/Rechts: Track -/+",20,425,c->gray);
+ media_feedback_render(c->renderer,c->font,c->selected,c->gray);
 }
