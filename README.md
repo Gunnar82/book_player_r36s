@@ -4,36 +4,25 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.7**
+**0.2.8**
 
 ## Funktionen
 
 - Hörspiel- und Trackauswahl mit Resume
 - mehrere konfigurierbare Speicherpfade über `config.ini`
-- verschachtelte Hörspielordner mit `↵ Zurueck`
-- Wiedergabe-, Track- und Gesamtfortschritt mit Prozentanzeige im Fließtext
-- Akku- und Lautstärkeanzeige direkt auf dem Wiedergabebildschirm
-- aktiver Sleeptimer wird mit verbleibender Zeit auf dem Wiedergabebildschirm angezeigt
+- verschachtelte Hörspielordner
+- Track- und Gesamtfortschritt mit Fortschrittsbalken
+- Akku- und Lautstärkeanzeige auf dem Wiedergabebildschirm
+- aktiver Sleeptimer mit verbleibender Zeit auf dem Wiedergabebildschirm
 - einstellbarer, persistenter Display-Inaktivitätstimer: Aus, 15 s, 30 s, 60 s, 2 min, 5 min oder 10 min
-- standardmäßig Stop am Ende des Hörspiels, optional Wiederholung von vorn
 - Sleep- und Idle-Timer
-- Herunterfahren nach N vollständig abgespielten Tracks
-- Herunterfahren am Ende des Hörspiels
-- Herunterfahren über `systemd-logind`/D-Bus statt `sudo poweroff`
-- Display-Backlight und Helligkeit
-- Akku-, CPU-, RAM- und Temperaturanzeige
-- Lautstärke, Audio-/ALSA-Ausgabe, LED-GPIO und LED-Test unter `Einstellungen`
-- Downloads aus nginx-XML-Listings, standardmäßig deaktiviert
-- HTTP/HTTPS mit optionaler eigener CA und optionalen Client-Zertifikaten
-- Mehrfachauswahl im Downloadbrowser; ausgewählte Ordner werden rekursiv mit allen Unterordnern und Dateien geladen
-- Downloadanzeige mit Datei- und Gesamtfortschrittsbalken sowie geschätzter Restzeit für aktuelle Datei und gesamte Auswahl
-- bei aktivierten Downloads werden URL, Zielpfad und TLS-/Client-Zertifikatsparameter unter `Einstellungen` nur lesend angezeigt
-- unter `Einstellungen` wird der absolute Pfad der tatsächlich verwendeten `config.ini` angezeigt
-- GitHub- und Kontakt-Hinweis unter `Einstellungen`
+- Herunterfahren über `systemd-logind`/D-Bus
+- Downloads aus nginx-XML-Listings mit HTTPS/mTLS, Mehrfachauswahl, rekursiven Ordnerdownloads, Datei-/Gesamtfortschritt und Restzeitschätzung
 - USB-/Headset-Mediatasten für Play/Pause, Stop und Trackwechsel
 - `KEY_PLAYPAUSE` und `KEY_PLAYCD` (Linux-Keycode 200) werden beide als Play/Pause behandelt
 - Headset-Mediatasten bleiben auch bei aktiver Tastensperre nutzbar
-- Button-Debug, D-Pad, Analogstick und Shoulder-Button-Navigation
+- integrierter MPRIS2-Player über D-Bus
+- integrierte BlueZ-Media-Registrierung für Bluetooth/AVRCP ohne separates `mpris-proxy`-Programm
 
 ## Projekt / Kontakt
 
@@ -43,11 +32,10 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 ## Steuerung
 
 - `Y`: Hörspielauswahl
-- `X`: Systemmenü mit Einstellungen, Downloads, Button Debug, Beenden und Herunterfahren
+- `X`: Systemmenü
 - `MID` (`EV_KEY 708`): Display an/aus
 - Wiedergabe: Hoch/Runter = +15/-15 Sekunden, Links/Rechts = Track zurück/weiter
-- `SELECT`: Tastensperre aktivieren; zum Entsperren wird die angezeigte zufällige Tastenfolge verwendet
-- Bei aktiver Tastensperre bleiben die über `media_keys` erkannten Headset-/USB-Mediatasten aktiv. Die Sperre betrifft weiterhin die Bedienelemente des Geräts.
+- `SELECT`: Tastensperre aktivieren
 
 ### Media-Keys
 
@@ -61,35 +49,82 @@ Unter Linux werden unter anderem folgende evdev-Tasten unterstützt:
 - `KEY_PAUSE` / `KEY_PAUSECD`: pausieren
 - `KEY_STOP` / `KEY_STOPCD`: stoppen
 
-Damit funktionieren auch Geräte, die ihre zentrale Wiedergabetaste als `KEY_PLAYCD` statt `KEY_PLAYPAUSE` melden.
+## MPRIS / Bluetooth / Navi
 
-### Downloadbrowser
+Seit **0.2.8** ist die Media-Brücke direkt in `hoerspiel_player` integriert. Auf DarkOS muss dafür kein separates `mpris-proxy` installiert werden.
 
-Im Downloadbrowser haben `X` und `Y` bewusst eine lokale Funktion. Die globale Belegung für Systemmenü bzw. Hörspielauswahl wird dort nicht ausgeführt.
+Der Player versucht beim Start zwei Wege parallel:
+
+1. Auf einem vorhandenen Benutzer-D-Bus wird `org.mpris.MediaPlayer2.HoerspielPlayer` unter `/org/mpris/MediaPlayer2` bereitgestellt.
+2. Auf dem System-D-Bus wird eine BlueZ-Media-Anwendung exportiert. Sobald ein Bluetooth-Adapter mit `org.bluez.Media1` verfügbar ist, registriert sich der Player automatisch über `RegisterApplication`.
+
+Fehlt beim Programmstart ein Bluetooth-Adapter, ist das **kein Fehler**. Der Player läuft normal weiter und versucht die BlueZ-Registrierung regelmäßig erneut. Der Bluetooth-Stick kann deshalb auch erst später vorhanden sein; für den ersten Navi-Test ist es am einfachsten, den Stick einzustecken und anschließend den Player zu starten.
+
+Über MPRIS/BlueZ werden aktuell folgende Steuerbefehle in dieselbe interne Media-Key-Logik eingespeist wie USB-/Headset-Tasten:
+
+- Play
+- Pause
+- Play/Pause
+- Stop
+- nächster Track
+- vorheriger Track
+
+Zusätzlich werden Wiedergabestatus, aktueller Trackname, Hörspielname, Tracknummer, Tracklänge, Position und Lautstärke veröffentlicht. Seek über MPRIS ist derzeit bewusst nicht freigegeben.
+
+Die BlueZ-Integration basiert auf `libsystemd`/`sd-bus`. Auf dem getesteten DarkOS ist `libsystemd.so` bereits als AArch64-Systembibliothek vorhanden. Nur der Docker-Build benötigt `libsystemd-dev`, damit die Header beim Kompilieren verfügbar sind. Es wird keine zusätzliche `libsystemd` mit dem Player ausgeliefert.
+
+### Test mit eingestecktem Bluetooth-Adapter
+
+Nach dem Start des Players sollten im Log je nach Umgebung Meldungen wie diese erscheinen:
+
+```text
+MPRIS: org.mpris.MediaPlayer2.HoerspielPlayer bereit.
+MPRIS/BlueZ: Media-Anwendung auf hci0 registriert.
+```
+
+Falls kein Session-Bus existiert, kann die erste Meldung fehlen bzw. einen Hinweis auf den nicht nutzbaren Session-Bus liefern. Die BlueZ-Registrierung über den System-Bus ist davon unabhängig.
+
+Mit Adapter kann geprüft werden:
+
+```sh
+busctl --system introspect org.bluez /org/bluez/hci0 org.bluez.Media1
+```
+
+und lokal, falls ein Benutzer-D-Bus vorhanden ist:
+
+```sh
+busctl --user tree org.mpris.MediaPlayer2.HoerspielPlayer
+busctl --user get-property \
+  org.mpris.MediaPlayer2.HoerspielPlayer \
+  /org/mpris/MediaPlayer2 \
+  org.mpris.MediaPlayer2.Player \
+  PlaybackStatus
+```
+
+## Downloadbrowser
+
+Im Downloadbrowser gilt:
 
 - `A`: ausgewählten Ordner öffnen
-- `B`: einen Ordner höher; im Basisverzeichnis direkt zurück zum Wiedergabe-/Hauptbildschirm
-- `Y`: aktuellen Ordner oder aktuelle Datei markieren bzw. Markierung entfernen
-- `X`: alle markierten Einträge herunterladen
-- D-Pad/Analogstick: Auswahl bewegen
+- `B`: einen Ordner höher; im Basisverzeichnis zurück zum Wiedergabebildschirm
+- `Y`: Datei oder Ordner markieren/entmarkieren
+- `X`: gesamte Auswahl herunterladen
 - `L1`/`R1`: seitenweise navigieren
-- `L2`/`R2`: zum Anfang/Ende springen
+- `L2`/`R2`: Anfang/Ende
 
-Markierungen bleiben beim Navigieren durch andere Remote-Ordner erhalten. Dadurch können beispielsweise mehrere Hörspielordner eines Autors ausgewählt und anschließend gemeinsam mit `X` geladen werden. Wird ein übergeordneter Ordner markiert, wird er rekursiv traversiert und vollständig heruntergeladen.
-
-Vor dem eigentlichen rekursiven Download ermittelt der Player die Anzahl und die bekannte Gesamtgröße der ausgewählten Dateien. Dadurch zeigt der Downloadbildschirm den Fortschritt über die **gesamte Auswahl** und nicht nur über den gerade bearbeiteten Ordner. Angezeigt werden die aktuelle Datei und die komplette Auswahl jeweils mit Fortschrittsbalken, Prozentwert und geschätzter Restzeit. Direkt zu Beginn eines Downloads wird zunächst `--:--` angezeigt, bis genügend Messdaten für eine Schätzung vorliegen.
+Markierte Ordner werden rekursiv geladen. Die lokale Ordnerstruktur wird relativ zu `base_url` gespiegelt.
 
 ## Einstellungen und Timer
 
-Der **Sleeptimer** wird weiterhin im Einstellungsmenü konfiguriert. Ist er aktiv, erscheint seine verbleibende Zeit zusätzlich auf dem Wiedergabebildschirm. Ist er deaktiviert, wird dort keine Sleeptimer-Zeile angezeigt.
+Der Sleeptimer wird im Einstellungsmenü konfiguriert. Ist er aktiv, erscheint die Restzeit zusätzlich auf dem Wiedergabebildschirm.
 
-Unter `Einstellungen` steht außerdem **Display aus nach** zur Verfügung. Mit Links/Rechts kann zwischen `Aus`, `15 s`, `30 s`, `60 s`, `2 min`, `5 min` und `10 min` gewechselt werden. Nach Ablauf der gewählten Zeit ohne Bedienung wird nur das Backlight abgeschaltet; die Wiedergabe läuft weiter. Die nächste Geräteingabe schaltet das Display wieder ein und wird dabei nur zum Aufwecken verwendet. Der Wert wird zusammen mit den lokalen Player-Einstellungen in `~/.hoerspiel_player_state` gespeichert.
+`Display aus nach` kann zwischen `Aus`, `15 s`, `30 s`, `60 s`, `2 min`, `5 min` und `10 min` eingestellt werden. Nach Ablauf wird nur das Backlight abgeschaltet; die Wiedergabe läuft weiter. Die nächste Geräteingabe weckt das Display. Der Wert wird in `~/.hoerspiel_player_state` gespeichert.
 
-Der **Idle-Timer** ist davon unabhängig: Er kann den Player bei ausbleibender Wiedergabe bzw. Bedienung vollständig herunterfahren. Display-Timeout und Idle-Timer sind daher bewusst zwei verschiedene Funktionen.
+Der Idle-Timer ist davon unabhängig und kann das Gerät vollständig herunterfahren.
 
 ## Konfiguration
 
-`config.ini` liegt im selben Verzeichnis wie `hoerspiel_player`. Der Player ermittelt diesen Pfad über `/proc/self/exe`; unter `Einstellungen` wird der daraus resultierende absolute Pfad angezeigt.
+`config.ini` liegt im selben Verzeichnis wie `hoerspiel_player`. Unter `Einstellungen` wird der absolute verwendete Pfad angezeigt.
 
 ```ini
 [storage]
@@ -116,19 +151,11 @@ client_key=
 client_key_password=
 ```
 
-Mit `repeat_book=1` beginnt das Hörspiel nach dem letzten Track wieder bei Track 1. `repeat_book` wird in `config.ini` gespeichert. Lautstärke, Idle-Timer und Display-Inaktivitätstimer werden im lokalen Player-State gespeichert. `Shutdown nach Tracks` und `Shutdown am Ende` sind dagegen nicht persistent und gelten nur für die aktuelle Sitzung.
-
-Downloads sind standardmäßig deaktiviert. Unter `Einstellungen` kann `Downloads` persistent auf `An` gestellt werden. Nur dann ist der Punkt `Downloads` im Systemmenü aktiv. URL, Zielpfad und TLS-Parameter werden direkt aus `config.ini` gelesen.
-
-Bei aktivierten Downloads werden zusätzlich `base_url`, `target_path`, `verify_peer`, `verify_host`, `ca_cert`, `client_cert` und `client_key` im Einstellungsmenü angezeigt. Diese Werte sind dort reine Information und werden weiterhin ausschließlich über `config.ini` geändert. Bei `client_key_password` wird aus Sicherheitsgründen nur angezeigt, ob ein Passwort gesetzt ist.
-
-`base_url` darf HTTP oder HTTPS verwenden. Bei HTTPS sind Zertifikats- und Hostprüfung standardmäßig aktiv. `ca_cert` kann auf eine eigene CA-Datei zeigen. Für mTLS können optional `client_cert` und `client_key` gesetzt werden; `client_key_password` ist nur erforderlich, wenn der private Key verschlüsselt ist. Bei öffentlichen Serverzertifikaten kann `ca_cert` leer bleiben, wenn die System-CA von DarkOS das Zertifikat bereits vertraut.
-
-Die lokale Ordnerstruktur wird relativ zu `base_url` gespiegelt. Der in `base_url` enthaltene Pfad selbst wird nicht lokal angelegt. Das gilt auch für rekursiv ausgewählte Ordner.
+`repeat_book` wird in `config.ini` gespeichert. Lautstärke, Idle-Timer und Display-Inaktivitätstimer werden im lokalen Player-State gespeichert. `Shutdown nach Tracks` und `Shutdown am Ende` gelten nur für die aktuelle Sitzung.
 
 ## Systemberechtigungen
 
-### GPIO-Zugriff für die LED
+### GPIO
 
 ```sh
 sudo groupadd -f gpio
@@ -141,16 +168,7 @@ sudo usermod -aG gpio ark
 SUBSYSTEM=="gpio", KERNEL=="gpio[0-9]*", ACTION=="add", RUN+="/bin/chown root:gpio /sys%p/value", RUN+="/bin/chmod 0660 /sys%p/value"
 ```
 
-```sh
-sudo chmod 0644 /etc/udev/rules.d/99-gpio-led.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger --action=add --subsystem-match=gpio
-sudo udevadm settle
-```
-
 ### Herunterfahren über systemd-logind und Polkit
-
-Seit **0.2.2** verwendet der Player kein `sudo poweroff` mehr. Stattdessen ruft er über `busctl` die D-Bus-Methode `org.freedesktop.login1.Manager.PowerOff` von `systemd-logind` auf.
 
 `/etc/polkit-1/rules.d/50-hoerspiel-player.rules`:
 
@@ -171,21 +189,9 @@ Danach:
 sudo systemctl restart polkit
 ```
 
-Ungefährlicher Funktionstest:
-
-```sh
-busctl call \
-  org.freedesktop.login1 \
-  /org/freedesktop/login1 \
-  org.freedesktop.login1.Manager \
-  CanPowerOff
-```
-
-Mit passender Polkit-Regel sollte `s "yes"` zurückgegeben werden.
-
 ## ARM64-Build
 
-DarkOS läuft auf AArch64. Die 0.2-Serie wird für `linux/arm64` gebaut und verwendet auf dem Gerät die installierten AArch64-Systembibliotheken. Es wird kein eigener `lib/`-Ordner aus Docker mit ausgeliefert.
+DarkOS läuft auf AArch64. Die 0.2-Serie wird für `linux/arm64` gebaut und verwendet die installierten AArch64-Systembibliotheken. Seit 0.2.8 gehört `libsystemd` für die integrierte D-Bus-/MPRIS-/BlueZ-Anbindung zu den Laufzeitabhängigkeiten; sie ist auf dem getesteten DarkOS bereits vorhanden.
 
 ```sh
 docker buildx build \
@@ -200,10 +206,10 @@ docker cp hoerspiel-build-temp:/build/hoerspiel_player ./
 docker rm hoerspiel-build-temp
 ```
 
-Für normale Builds **kein `--no-cache`** verwenden. Dadurch bleibt insbesondere die Paketinstallation aus dem Dockerfile im Buildx-Cache.
+Für normale Builds kein `--no-cache` verwenden.
 
 ## Entwicklung
 
-**0.2.7** stellt den automatischen Display-Timeout wieder her und macht ihn im Einstellungsmenü persistent konfigurierbar. Ein aktiver Sleeptimer wird nun zusätzlich auf dem Wiedergabebildschirm angezeigt. Außerdem werden sowohl `KEY_PLAYPAUSE` als auch `KEY_PLAYCD` (Keycode 200) als Play/Pause akzeptiert.
+**0.2.8** integriert MPRIS2 und eine direkte BlueZ-Media-Anwendung in den Player. Ein separates `mpris-proxy` ist damit für den vorgesehenen Navi-Test nicht mehr nötig. Die BlueZ-Registrierung wird dynamisch versucht und verhindert den Programmstart nicht, wenn kein Bluetooth-Adapter vorhanden ist.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
