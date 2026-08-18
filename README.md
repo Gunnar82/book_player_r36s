@@ -4,7 +4,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 
 ## Version
 
-**0.2.9**
+**0.2.10**
 
 ## Funktionen
 
@@ -23,6 +23,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2/SDL2_ttf.
 - `KEY_PLAYCD` (Linux-Keycode 200) und `KEY_PLAY` werden ausschließlich als Play behandelt
 - `KEY_PAUSECD` und `KEY_PAUSE` werden ausschließlich als Pause behandelt
 - Headset-Mediatasten bleiben auch bei aktiver Tastensperre nutzbar
+- drei Sekunden sichtbare Media-Key-Rückmeldung auf dem Wiedergabebildschirm
 - integrierter MPRIS2-Player über D-Bus
 - integrierte BlueZ-Media-Registrierung für Bluetooth/AVRCP ohne separates `mpris-proxy`-Programm
 
@@ -51,7 +52,9 @@ Unter Linux werden unter anderem folgende evdev-Tasten unterstützt:
 - `KEY_PAUSE` / `KEY_PAUSECD`: Pause
 - `KEY_STOP` / `KEY_STOPCD`: Stop
 
-Damit werden getrennte Play- und Pause-Tasten nicht mehr wie ein Toggle behandelt. Insbesondere ist `KEY_PLAYCD` seit 0.2.9 kein Play/Pause mehr.
+Damit werden getrennte Play- und Pause-Tasten nicht wie ein Toggle behandelt. `KEY_PLAYCD` ist seit 0.2.9 ausschließlich Play.
+
+Seit **0.2.10** erscheint bei einer erkannten Media-Taste für drei Sekunden eine große Rückmeldung auf dem Wiedergabebildschirm. Angezeigt werden die Aktion (`NEXT`, `PREVIOUS`, `PLAY`, `PAUSE`, `PLAY / PAUSE` oder `STOP`), ein großes Symbol und darunter die Herkunft des Kommandos. Bei evdev-Tasten wird der echte Linux-Keycode angezeigt, zum Beispiel `Keycode: 200`. Bei Bluetooth-/MPRIS-Kommandos existiert kein Linux-evdev-Keycode; dort wird stattdessen die empfangene MPRIS-Methode wie `Play`, `Pause`, `Next` oder `Previous` als Quelle angezeigt.
 
 ## MPRIS / Bluetooth / Navi
 
@@ -73,7 +76,7 @@ Fehlt beim Programmstart ein Bluetooth-Adapter, ist das kein Fehler. Der Player 
 - nächster Track
 - vorheriger Track
 
-Wichtig für die Fehlersuche: Der Bildschirm **Button Debug** zeigt evdev-/SDL-Ereignisse. Bluetooth-/MPRIS-Kommandos kommen dagegen über D-Bus/BlueZ und erscheinen deshalb dort nicht als `KEY_PLAYCD`, `KEY_PAUSECD` usw. Die BlueZ-/MPRIS-Seite ruft direkt die jeweiligen Methoden `Play`, `Pause`, `PlayPause`, `Next`, `Previous` oder `Stop` auf.
+Der Bildschirm **Button Debug** zeigt evdev-/SDL-Ereignisse. Bluetooth-/MPRIS-Kommandos kommen dagegen über D-Bus/BlueZ und erscheinen dort nicht als `KEY_PLAYCD`, `KEY_PAUSECD` usw. Seit 0.2.10 werden diese Kommandos dafür direkt auf dem Wiedergabebildschirm als Media-Rückmeldung angezeigt.
 
 Zusätzlich werden Wiedergabestatus, aktueller Trackname, Hörspielname, Tracknummer, Tracklänge, Position und Lautstärke veröffentlicht. Seek über MPRIS ist derzeit nicht freigegeben.
 
@@ -214,6 +217,6 @@ Für normale Builds kein `--no-cache` verwenden.
 
 ## Entwicklung
 
-**0.2.9** trennt die evdev-Medientasten sauber: `KEY_PLAYPAUSE` bleibt ein Toggle, `KEY_PLAYCD`/`KEY_PLAY` führen nur Play aus und `KEY_PAUSECD`/`KEY_PAUSE` nur Pause. Die MPRIS-/BlueZ-Seite arbeitet ohnehin mit getrennten D-Bus-Methoden für Play, Pause und PlayPause; deshalb erscheinen Navi-Kommandos nicht im evdev-basierten Button-Debug.
+**0.2.10** ergänzt eine drei Sekunden sichtbare Media-Key-Rückmeldung auf dem Wiedergabebildschirm. Evdev-Kommandos zeigen dabei den echten Linux-Keycode; MPRIS-/BlueZ-Kommandos zeigen mangels evdev-Keycode die empfangene D-Bus-Methode. Die vorhandene Trennung von Play, Pause und Play/Pause bleibt erhalten.
 
 Die weitere Entwicklung erfolgt direkt auf `main`.
