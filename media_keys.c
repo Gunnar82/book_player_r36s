@@ -1,4 +1,5 @@
 #include "media_keys.h"
+#include "media_feedback.h"
 #include "config.h"
 
 #include <linux/input.h>
@@ -83,6 +84,7 @@ int media_keys_poll(MediaKeys *mk, MediaKeyAction *actions, int max_actions)
                     MediaKeyAction action = map_key(ev.code);
                     if (action != MEDIA_KEY_NONE) {
                         actions[count++] = action;
+                        media_feedback_show(action,(int)ev.code,"evdev");
                         if (count >= max_actions) return count;
                     }
                 }
