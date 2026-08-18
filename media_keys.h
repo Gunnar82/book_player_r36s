@@ -12,7 +12,8 @@ typedef enum {
     MEDIA_KEY_PLAY_PAUSE,
     MEDIA_KEY_PLAY,
     MEDIA_KEY_PAUSE,
-    MEDIA_KEY_STOP
+    MEDIA_KEY_STOP,
+    MEDIA_KEY_DISPLAY_TOGGLE
 } MediaKeyAction;
 
 typedef struct {
