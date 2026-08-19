@@ -9,7 +9,8 @@ typedef enum {
     SCREEN_SYSTEM_INFO = 4,
     SCREEN_BUTTON_DEBUG = 5,
     SCREEN_SYSTEM_MENU = 6,
-    SCREEN_DOWNLOADS = 7
+    SCREEN_DOWNLOADS = 7,
+    SCREEN_LOG = 8
 } ScreenId;
 
 #endif

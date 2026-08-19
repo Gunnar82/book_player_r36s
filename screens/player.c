@@ -66,7 +66,8 @@ void player_render(ScreenContext *c){
  draw_text(c->renderer,c->font,battery,20,20,c->gray);
  draw_text_right(c->renderer,c->font,vol,SCREEN_W-20,20,c->gray);
  draw_text(c->renderer,c->font,c->book_names[*c->book_index],20,50,c->gray);
- draw_text(c->renderer,c->font,c->tracks[*c->track_index].name,20,100,c->selected);
+ const char *track_display=c->tracks[*c->track_index].name;if(*c->music){const char *id3_title=Mix_GetMusicTitleTag(*c->music);if(id3_title&&id3_title[0])track_display=id3_title;}
+ draw_text(c->renderer,c->font,track_display,20,100,c->selected);
  char tr[64];snprintf(tr,sizeof(tr),"Track %d / %d",*c->track_index+1,*c->track_count);draw_text(c->renderer,c->font,tr,20,142,c->white);
  if(*c->duration>0){
   char total[32],time[128];format_time(*c->duration,total,sizeof(total));

@@ -1,52 +1,10 @@
+#include "ui.h"
 #include <stdio.h>
 
-#include "ui.h"
-
-void draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
-                int x, int y, SDL_Color color)
-{
-    if (!font)
-        return;
-
-    SDL_Surface *s = TTF_RenderUTF8_Blended(font, text, color);
-    if (!s)
-        return;
-
-    SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
-    if (t) {
-        SDL_Rect dst = { x, y, s->w, s->h };
-        SDL_RenderCopy(r, t, NULL, &dst);
-        SDL_DestroyTexture(t);
-    }
-
-    SDL_FreeSurface(s);
+void draw_text(SDL_Renderer *r,TTF_Font *f,const char *text,int x,int y,SDL_Color c){
+ if(!text||!text[0])return;SDL_Surface *s=TTF_RenderUTF8_Blended(f,text,c);if(!s)return;SDL_Texture *t=SDL_CreateTextureFromSurface(r,s);if(t){SDL_Rect d={x,y,s->w,s->h};SDL_RenderCopy(r,t,NULL,&d);SDL_DestroyTexture(t);}SDL_FreeSurface(s);
 }
-
-void draw_text_right(SDL_Renderer *r, TTF_Font *font, const char *text,
-                       int right_x, int y, SDL_Color color)
-{
-    if (!font)
-        return;
-
-    int w = 0, h = 0;
-    if (TTF_SizeUTF8(font, text, &w, &h) != 0)
-        return;
-
-    draw_text(r, font, text, right_x - w, y, color);
+void draw_text_right(SDL_Renderer *r,TTF_Font *f,const char *text,int right_x,int y,SDL_Color c){
+ if(!text||!text[0])return;int w=0,h=0;if(TTF_SizeUTF8(f,text,&w,&h)==0)draw_text(r,f,text,right_x-w,y,c);
 }
-
-void format_time(double seconds, char *out, size_t size)
-{
-    if (seconds < 0)
-        seconds = 0;
-
-    int total = (int)seconds;
-    int h = total / 3600;
-    int m = (total % 3600) / 60;
-    int s = total % 60;
-
-    if (h)
-        snprintf(out, size, "%d:%02d:%02d", h, m, s);
-    else
-        snprintf(out, size, "%02d:%02d", m, s);
-}
+void format_time(double sec,char *buf,size_t n){if(sec<0)sec=0;long s=(long)sec;long h=s/3600;long m=(s%3600)/60;long z=s%60;if(h>0)snprintf(buf,n,"%ld:%02ld:%02ld",h,m,z);else snprintf(buf,n,"%02ld:%02ld",m,z);}
