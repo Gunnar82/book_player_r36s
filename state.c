@@ -16,6 +16,9 @@ int progress_count = 0;
 int volume = MIX_MAX_VOLUME;
 int idle_timer_minutes = 0;
 int display_timeout_seconds = 60;
+unsigned long long usage_app_starts = 0;
+unsigned long long usage_runtime_seconds = 0;
+unsigned long long usage_playback_seconds = 0;
 
 static char progress_file[512];
 
@@ -33,6 +36,15 @@ void load_state(void)
     if (!fp) return;
     char line[800];
     while (fgets(line, sizeof(line), fp) && progress_count < MAX_BOOKS) {
+        if (!strncmp(line, "@usage\t", 7)) {
+            unsigned long long starts=0, runtime=0, playback=0;
+            if (sscanf(line + 7, "%llu\t%llu\t%llu", &starts, &runtime, &playback) >= 1) {
+                usage_app_starts = starts;
+                usage_runtime_seconds = runtime;
+                usage_playback_seconds = playback;
+            }
+            continue;
+        }
         if (!strncmp(line, "@settings\t", 10)) {
             int saved_volume = volume;
             int saved_idle = idle_timer_minutes;
@@ -78,6 +90,7 @@ void save_state(void)
     FILE *fp = fopen(progress_file, "w");
     if (!fp) return;
     fprintf(fp, "@settings\t%d\t%d\t%d\n", volume, idle_timer_minutes, display_timeout_seconds);
+    fprintf(fp, "@usage\t%llu\t%llu\t%llu\n", usage_app_starts, usage_runtime_seconds, usage_playback_seconds);
     for (int i = 0; i < progress_count; i++) {
         fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\t%u\n", progress[i].path, progress[i].track,
                 progress[i].position, volume, progress[i].last_played, progress[i].dial_id);
