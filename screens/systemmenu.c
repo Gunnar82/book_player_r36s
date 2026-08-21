@@ -44,7 +44,8 @@ void systemmenu_handle_event(ScreenContext *c, const SDL_Event *e)
 {
     if (e->type == SDL_JOYBUTTONDOWN) {
         int b = e->jbutton.button;
-        if (b == BUTTON_B) { *c->screen = SCREEN_PLAYER; return; }
+        if (b == BUTTON_B || b == BUTTON_DPAD_LEFT) { *c->screen = SCREEN_PLAYER; return; }
+        if (b == BUTTON_DPAD_RIGHT) { activate(c); return; }
         if (b == BUTTON_DPAD_UP) { move_selection(-1); return; }
         if (b == BUTTON_DPAD_DOWN) { move_selection(1); return; }
         if (b == BUTTON_A) { activate(c); return; }
@@ -79,6 +80,6 @@ void systemmenu_render(ScreenContext *c)
     }
 
     draw_text(c->renderer, c->font,
-              "A: Auswaehlen   B: Player   Y: Hoerspiele",
+              "Rechts/A: Auswaehlen   Links/B: Player   Y: Hoerspiele",
               20, SCREEN_H - 35, c->gray);
 }
