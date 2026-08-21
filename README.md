@@ -4,7 +4,20 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.2.30-idle-download-pause**
+**0.2.32-idle-reset**
+
+### Änderungen 0.2.32
+
+- Jeder Tastendruck setzt den aktiven Idle-Timer wieder auf den vollständig konfigurierten Ausgangswert zurück.
+- Nach jedem Downloadversuch wird der aktive Idle-Timer ebenfalls auf den vollständigen Ausgangswert zurückgesetzt.
+- Das gilt für erfolgreiche Downloads, abgebrochene Downloads und Auswahlen, bei denen lokal bereits vorhandene größenidentische Dateien übersprungen wurden.
+- Ist der Idle-Timer deaktiviert, bleibt er deaktiviert.
+
+### Änderungen 0.2.31
+
+- Lokal bereits vorhandene Dateien werden beim Download übersprungen, wenn ihre Dateigröße exakt der im Server-Listing angegebenen Größe entspricht.
+- Ist die Servergröße unbekannt oder weicht die lokale Größe ab, wird die Datei wie bisher über eine `.part`-Datei neu geladen und erst nach erfolgreichem Abschluss ersetzt.
+- Beim Zurückgehen aus einem Unterordner im Download-Browser bleibt der zuvor geöffnete Ordner markiert.
 
 ### Änderungen 0.2.30
 
@@ -42,10 +55,12 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - ID3-Titelanzeige mit Dateinamen-Fallback
 - Akkuanzeige, Restlaufzeit und Lade-Restzeit bis voll
 - Lautstärke-, Helligkeits-, Sleep-, Idle- und Display-Timer
-- Idle-Timer pausiert während aktiver Downloads
+- Idle-Timer pausiert während aktiver Downloads und wird durch Tastenaktivität sowie nach Downloadende auf den vollen konfigurierten Wert zurückgesetzt
 - MPRIS2/BlueZ-Media-Integration und Bluetooth-Autoconnect
 - Bluetooth-Hotplug und sauberer Betrieb ohne Bluetooth-Adapter
 - Downloads aus nginx-XML-Listings mit HTTPS/mTLS
+- bereits vollständig vorhandene Download-Dateien werden anhand identischer Dateigröße übersprungen
+- Download-Browser merkt beim Zurückgehen den zuvor geöffneten Ordner
 - USB-/Headset-Mediatasten
 - Programm-Log und Button-Debug unter `Einstellungen -> DIAGNOSE`
 - Herunterfahren über systemd-logind/D-Bus
@@ -157,7 +172,7 @@ docker buildx build \
   .
 ```
 
-Der Docker-Build prüft `APP_VERSION "0.2.30-idle-download-pause"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
+Der Docker-Build prüft `APP_VERSION "0.2.32-idle-reset"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
 
 ## Tests
 
