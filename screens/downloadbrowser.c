@@ -175,6 +175,12 @@ static void start_selected_download(ScreenContext *c)
     ui.file_start=ui.total_start;
     ui.last_file_index=-1;
     int rc=remote_download_selection(selected,selected_count,progress_render,&ui,err,sizeof(err));
+
+    /* Ein Download gilt als Aktivitaet. Nach Ende oder Abbruch beginnt der
+       konfigurierte Idle-Timer wieder mit seiner vollen Laufzeit. */
+    if(c->idle_timer_remaining_ms)
+        *c->idle_timer_remaining_ms=idle_timer_minutes>0?(Uint32)idle_timer_minutes*60000U:0U;
+
     if(rc>=0){snprintf(status,sizeof(status),"%d Dateien geladen. Neustart zum Einlesen.",rc);finished_download=1;selected_count=0;}
     else snprintf(status,sizeof(status),"%s",err[0]?err:"Download fehlgeschlagen");
 }
