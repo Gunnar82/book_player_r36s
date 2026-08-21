@@ -1,6 +1,7 @@
 #include "downloadbrowser.h"
 #include "../download.h"
 #include "../storage.h"
+#include "../state.h"
 #include "../ui.h"
 
 #include <SDL2/SDL.h>
@@ -191,7 +192,8 @@ void downloadbrowser_handle_event(ScreenContext *c,const SDL_Event *e){
     if(!loaded&&!loading)load_current();
     if(e->type==SDL_JOYBUTTONDOWN){
         int b=e->jbutton.button;
-        if(b==BUTTON_B){if(relative_path[0]){parent_dir();return;}*c->screen=SCREEN_PLAYER;return;}
+        if(b==BUTTON_B||b==BUTTON_DPAD_LEFT){if(relative_path[0]){parent_dir();return;}*c->screen=SCREEN_PLAYER;return;}
+        if(b==BUTTON_DPAD_RIGHT){if(entry_count>0&&entries[selection].type==REMOTE_DIRECTORY)enter_directory(entries[selection].name);return;}
         if(b==BUTTON_DPAD_UP){selection--;if(selection<0)selection=entry_count>0?entry_count-1:0;keep_visible();return;}
         if(b==BUTTON_DPAD_DOWN){selection++;if(selection>=entry_count)selection=0;keep_visible();return;}
         if(b==BUTTON_L1){selection-=LIST_PAGE_SIZE;if(selection<0)selection=0;keep_visible();return;}
@@ -225,5 +227,5 @@ void downloadbrowser_render(ScreenContext *c){
     }
     char sel[96];snprintf(sel,sizeof(sel),"%d ausgewaehlt",selected_count);draw_text(c->renderer,c->font,sel,20,392,c->selected);
     if(status[0])draw_text(c->renderer,c->font,status,170,392,finished_download?c->selected:c->gray);
-    draw_text(c->renderer,c->font,relative_path[0]?"A: Oeffnen  B: Hoeher  Y: Markieren  X: Auswahl laden":"A: Oeffnen  B: Hauptbildschirm  Y: Markieren  X: Auswahl laden",20,SCREEN_H-25,c->gray);
+    draw_text(c->renderer,c->font,relative_path[0]?"Rechts/A: Oeffnen  Links/B: Hoeher  Y: Markieren  X: Auswahl laden":"Rechts/A: Oeffnen  Links/B: Player  Y: Markieren  X: Auswahl laden",20,SCREEN_H-25,c->gray);
 }
