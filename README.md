@@ -4,7 +4,14 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.2.32-idle-reset**
+**0.2.33-lock-nav-usage**
+
+### Änderungen 0.2.33
+
+- In Hörspiel-Browser, Trackauswahl, Systemmenü und Download-Browser gilt zusätzlich: D-Pad links = zurück, D-Pad rechts = A/Auswählen. Im Wiedergabebildschirm bleibt links/rechts weiterhin Track zurück/weiter; in den Einstellungen bleibt links/rechts für Wertänderungen reserviert.
+- Bei aktiver Tastensperre bleibt der Wiedergabebildschirm sichtbar. Oben rechts zeigt ein kleines grafisches Schloss den gesperrten Zustand an.
+- Ein Tastendruck im gesperrten Zustand blendet die bekannte Entsperrsequenz ein. Jeder weitere Tastendruck startet die 5-Sekunden-Anzeige erneut. Nach 5 Sekunden ohne Eingabe wird wieder der Wiedergabebildschirm angezeigt; die Sperre bleibt aktiv.
+- Unter Einstellungen gibt es eine persistente Nutzungsstatistik mit App-Starts, gesamter Player-Laufzeit und tatsächlicher Hörzeit.
 
 ### Änderungen 0.2.32
 
@@ -48,6 +55,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 ## Funktionen
 
 - Hörspiel- und Trackauswahl mit Resume und verschachtelten Hörspielordnern
+- D-Pad-Navigation in Listen: links = zurück, rechts = auswählen
 - persistente Hörspiel-ID für HFP/PBAP; sichtbar als Suffix nur bei vorhandenem Bluetooth-Adapter
 - automatisches PBAP-vCard-Telefonbuch unter `$HOME/phonebook/telecom/pb/`
 - HFP-Wahl eines Telefonbucheintrags startet das zugehörige Hörspiel
@@ -56,6 +64,8 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - Akkuanzeige, Restlaufzeit und Lade-Restzeit bis voll
 - Lautstärke-, Helligkeits-, Sleep-, Idle- und Display-Timer
 - Idle-Timer pausiert während aktiver Downloads und wird durch Tastenaktivität sowie nach Downloadende auf den vollen konfigurierten Wert zurückgesetzt
+- Tastensperre mit Wiedergabebildschirm, Schloss-Symbol und temporärem Entsperrbildschirm
+- persistente Nutzungsstatistik für App-Starts, Laufzeit und Hörzeit
 - MPRIS2/BlueZ-Media-Integration und Bluetooth-Autoconnect
 - Bluetooth-Hotplug und sauberer Betrieb ohne Bluetooth-Adapter
 - Downloads aus nginx-XML-Listings mit HTTPS/mTLS
@@ -72,12 +82,28 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - `A`: Auswahl bzw. Play/Pause
 - `B`: zurück
 - `SELECT`: Tastensperre
+- Listenmenüs: D-Pad links = zurück, D-Pad rechts = A/Auswählen
 - Wiedergabe D-Pad Hoch/Runter: +15/-15 Sekunden
 - Wiedergabe D-Pad Links/Rechts: Track zurück/weiter
+- Einstellungen D-Pad Links/Rechts: Wert ändern
 - `L1`/`R1`: seitenweise navigieren
 - `L2`/`R2`: Anfang/Ende
 
 Analoge Joystick-Achsen werden bewusst nicht mehr ausgewertet.
+
+## Tastensperre
+
+Mit `SELECT` wird die Tastensperre aktiviert. Der Player bleibt dabei auf dem Wiedergabebildschirm und zeigt oben rechts ein kleines Schloss-Symbol. Erst beim nächsten Tastendruck erscheint die Entsperrsequenz. Jeder weitere Tastendruck setzt deren 5-Sekunden-Anzeige neu. Erfolgt 5 Sekunden lang keine weitere Eingabe, kehrt die Anzeige zur Wiedergabe zurück; die Tastensperre bleibt aktiv, bis die korrekte Sequenz eingegeben wurde.
+
+## Nutzungsstatistik
+
+Unter `Einstellungen -> NUTZUNGSSTATISTIK` werden persistent gespeichert und angezeigt:
+
+- App-Starts
+- gesamte Player-Laufzeit
+- tatsächliche Hörzeit bei laufender, nicht pausierter Wiedergabe
+
+Die Werte werden zusammen mit dem bestehenden Player-Status gespeichert und bleiben nach Neustarts erhalten.
 
 ## Bluetooth, HFP und PBAP
 
@@ -144,6 +170,7 @@ Zu den Einstellungen gehören unter anderem:
 - Display-Inaktivität
 - LED GPIO / LED-Test
 - Wiederholverhalten
+- Nutzungsstatistik
 - System-, Leistungs-, Akku- und Speicherinformationen
 - ganz unten: `DIAGNOSE` mit `Button Debug` und `Programm-Log`
 
@@ -172,7 +199,7 @@ docker buildx build \
   .
 ```
 
-Der Docker-Build prüft `APP_VERSION "0.2.32-idle-reset"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
+Der Docker-Build prüft `APP_VERSION "0.2.33-lock-nav-usage"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
 
 ## Tests
 
