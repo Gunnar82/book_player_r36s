@@ -3,6 +3,7 @@
 #include "../state.h"
 #include "../audio.h"
 #include "../ui.h"
+#include "../bluetooth.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -38,7 +39,7 @@ void tracks_render(ScreenContext *c)
 {
     char book_label[320];
     unsigned int dial_id=ensure_book_dial_id(c->book_paths[*c->book_index]);
-    if(dial_id>=1001)snprintf(book_label,sizeof(book_label),"[%u] %s",dial_id,c->book_names[*c->book_index]);
+    if(bluetooth_adapter_present() && dial_id>=1001)snprintf(book_label,sizeof(book_label),"%s [%u]",c->book_names[*c->book_index],dial_id);
     else snprintf(book_label,sizeof(book_label),"%s",c->book_names[*c->book_index]);
     draw_text(c->renderer,c->font,book_label,20,20,c->selected);
     const int top=60,bottom=SCREEN_H-60,row=28,visible=(bottom-top)/row;
