@@ -211,6 +211,14 @@ static int make_dirs(const char *path)
     return 0;
 }
 
+static int local_file_matches_remote_size(const char *path,long long remote_size)
+{
+    if(!path||remote_size<=0)return 0;
+    struct stat st;
+    if(stat(path,&st)!=0||!S_ISREG(st.st_mode))return 0;
+    return (long long)st.st_size==remote_size;
+}
+
 int remote_fetch_listing(const char *relative_path,RemoteEntry *entries,int max_entries,char *error,size_t error_size)
 {
     if(error&&error_size)error[0]='\0';
@@ -276,13 +284,27 @@ int remote_download_files(const char *relative_path,const RemoteEntry *entries,i
         if(entries[i].type!=REMOTE_FILE)continue;
         file_index++;
         char dir_url[4096],url[4608],local[REMOTE_PATH_LEN+1536],part[REMOTE_PATH_LEN+1556];
+        snprintf(local,sizeof(local),"%s/%s",local_dir,entries[i].name);
+        snprintf(part,sizeof(part),"%s.part",local);
+
+        if(local_file_matches_remote_size(local,entries[i].size)){
+            unlink(part);
+            if(progress&&progress(entries[i].name,file_index,file_count,
+                                  entries[i].size,entries[i].size,
+                                  completed+entries[i].size,total_size,userdata)){
+                snprintf(error,error_size,"Download abgebrochen");
+                curl_easy_cleanup(curl);
+                return -1;
+            }
+            completed+=entries[i].size;
+            continue;
+        }
+
         if(append_encoded_path(curl,relative_path,dir_url,sizeof(dir_url))!=0){snprintf(error,error_size,"Ungueltiger Remote-Pfad");curl_easy_cleanup(curl);return -1;}
         char *esc=curl_easy_escape(curl,entries[i].name,0);
         if(!esc){snprintf(error,error_size,"Dateiname kann nicht kodiert werden");curl_easy_cleanup(curl);return -1;}
         snprintf(url,sizeof(url),"%s%s",dir_url,esc);
         curl_free(esc);
-        snprintf(local,sizeof(local),"%s/%s",local_dir,entries[i].name);
-        snprintf(part,sizeof(part),"%s.part",local);
 
         FILE *fp=fopen(part,"wb");
         if(!fp){snprintf(error,error_size,"Kann %s nicht schreiben",part);curl_easy_cleanup(curl);return -1;}
