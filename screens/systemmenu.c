@@ -2,6 +2,7 @@
 #include "../ui.h"
 #include "../storage.h"
 #include "downloadbrowser.h"
+#include "logview.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -9,7 +10,6 @@ static int selection = 0;
 static const char *items[] = {
     "Einstellungen",
     "Downloads",
-    "Button Debug",
     "Beenden",
     "Herunterfahren"
 };
@@ -32,9 +32,8 @@ static void activate(ScreenContext *c)
                 *c->screen = SCREEN_DOWNLOADS;
             }
             break;
-        case 2: *c->screen = SCREEN_BUTTON_DEBUG; break;
-        case 3: *c->running = 0; break;
-        case 4:
+        case 2: *c->running = 0; break;
+        case 3:
             c->shutdown_fn(c->music);
             *c->running = 0;
             break;

@@ -11,6 +11,8 @@ void save_state(void);
 int find_book_progress(const char *book_path);
 int ensure_book_progress(const char *book_path);
 void touch_book_progress(int index);
+unsigned int ensure_book_dial_id(const char *book_path);
+int find_book_progress_by_dial_id(unsigned int dial_id);
 extern BookProgress progress[];
 extern int progress_count;
 

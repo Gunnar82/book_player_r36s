@@ -34,6 +34,7 @@ static int scroll_offset = 0;
 static int dirty = 1;
 static char current_path[512] = "";
 static char current_root[512] = "";
+static char return_selection_path[512] = "";
 
 static int entry_selectable(int i)
 {
@@ -74,7 +75,13 @@ static void add_directory_children(const char *path)
             snprintf(label, sizeof(label), "%s/", names[i]);
             add_entry(BROWSER_DIRECTORY, label, paths[i]);
         } else if (has_audio) {
-            add_entry(BROWSER_BOOK, names[i], paths[i]);
+            char label[256];
+            unsigned int dial_id = ensure_book_dial_id(paths[i]);
+            if (dial_id >= 1001)
+                snprintf(label, sizeof(label), "[%u] %s", dial_id, names[i]);
+            else
+                snprintf(label, sizeof(label), "%s", names[i]);
+            add_entry(BROWSER_BOOK, label, paths[i]);
         }
     }
 }
@@ -119,6 +126,17 @@ static void rebuild(ScreenContext *c)
 
     if (selection >= entry_count) selection = entry_count - 1;
     if (selection < 0) selection = 0;
+
+    if (return_selection_path[0]) {
+        for (int i = 0; i < entry_count; i++) {
+            if (entry_selectable(i) && entries[i].path[0] &&
+                !strcmp(entries[i].path, return_selection_path)) {
+                selection = i;
+                break;
+            }
+        }
+        return_selection_path[0] = '\0';
+    }
 
     if (entry_count > 0 && !entry_selectable(selection)) {
         int found = -1;
@@ -201,6 +219,8 @@ static void go_to_end(void)
 static void parent_directory(void)
 {
     if (!current_path[0]) return;
+
+    snprintf(return_selection_path, sizeof(return_selection_path), "%s", current_path);
 
     if (!strcmp(current_path, current_root)) {
         current_path[0] = '\0';

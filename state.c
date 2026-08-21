@@ -65,6 +65,7 @@ void load_state(void)
         p->track = atoi(a);
         p->position = atof(b);
         p->last_played = d ? atoll(d) : 0;
+        if (d) { char *e = strchr(d, '\t'); if (e) p->dial_id = (unsigned int)strtoul(e + 1, NULL, 10); }
         volume = atoi(c);
         if (volume < 0) volume = 0;
         if (volume > MIX_MAX_VOLUME) volume = MIX_MAX_VOLUME;
@@ -78,8 +79,8 @@ void save_state(void)
     if (!fp) return;
     fprintf(fp, "@settings\t%d\t%d\t%d\n", volume, idle_timer_minutes, display_timeout_seconds);
     for (int i = 0; i < progress_count; i++) {
-        fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\n", progress[i].path, progress[i].track,
-                progress[i].position, volume, progress[i].last_played);
+        fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\t%u\n", progress[i].path, progress[i].track,
+                progress[i].position, volume, progress[i].last_played, progress[i].dial_id);
     }
     fclose(fp);
 }
@@ -105,4 +106,28 @@ void touch_book_progress(int index)
 {
     if (index < 0 || index >= progress_count) return;
     progress[index].last_played = (long long)time(NULL);
+}
+
+static int dial_id_in_use(unsigned int id)
+{
+    for (int i = 0; i < progress_count; i++) if (progress[i].dial_id == id) return 1;
+    return 0;
+}
+
+unsigned int ensure_book_dial_id(const char *book_path)
+{
+    int i = ensure_book_progress(book_path);
+    if (i < 0) return 0;
+    if (progress[i].dial_id >= 1001) return progress[i].dial_id;
+    unsigned int id = 1001;
+    while (dial_id_in_use(id) && id < 999999999U) id++;
+    progress[i].dial_id = id;
+    return id;
+}
+
+int find_book_progress_by_dial_id(unsigned int dial_id)
+{
+    if (dial_id < 1001) return -1;
+    for (int i = 0; i < progress_count; i++) if (progress[i].dial_id == dial_id) return i;
+    return -1;
 }

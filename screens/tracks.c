@@ -4,6 +4,7 @@
 #include "../audio.h"
 #include "../ui.h"
 #include <stdlib.h>
+#include <stdio.h>
 
 void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
 {
@@ -35,7 +36,11 @@ void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
 
 void tracks_render(ScreenContext *c)
 {
-    draw_text(c->renderer,c->font,c->book_names[*c->book_index],20,20,c->selected);
+    char book_label[320];
+    unsigned int dial_id=ensure_book_dial_id(c->book_paths[*c->book_index]);
+    if(dial_id>=1001)snprintf(book_label,sizeof(book_label),"[%u] %s",dial_id,c->book_names[*c->book_index]);
+    else snprintf(book_label,sizeof(book_label),"%s",c->book_names[*c->book_index]);
+    draw_text(c->renderer,c->font,book_label,20,20,c->selected);
     const int top=60,bottom=SCREEN_H-60,row=28,visible=(bottom-top)/row;
     int start=0;if(*c->track_count>visible&&*c->track_index>=visible)start=*c->track_index-visible+1;
     int n=*c->track_count-start;if(n>visible)n=visible;int y=top;

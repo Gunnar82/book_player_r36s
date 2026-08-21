@@ -1,3 +1,4 @@
+#include "../battery.h"
 #include "player.h"
 #include "../audio.h"
 #include "../state.h"
@@ -60,13 +61,24 @@ void player_render(ScreenContext *c){
  char ptxt[64];format_time(pos,ptxt,sizeof(ptxt));
  char battery[64],vol[64];
  if(c->battery_percent&&*c->battery_percent>=0){
-  snprintf(battery,sizeof(battery),"Akku: %d %% %s",*c->battery_percent,(c->battery_charging&&*c->battery_charging==1)?"(laedt)":"");
+  if(c->battery_charging&&*c->battery_charging==1){
+   int rem=get_battery_charge_remaining_minutes();
+   if(rem==0)snprintf(battery,sizeof(battery),"Akku: %d %%  voll",*c->battery_percent);
+   else if(rem>0&&rem<60)snprintf(battery,sizeof(battery),"Akku: %d %%  ~%d min bis voll",*c->battery_percent,rem);
+   else if(rem>=60)snprintf(battery,sizeof(battery),"Akku: %d %%  ~%dh%02d bis voll",*c->battery_percent,rem/60,rem%60);
+   else snprintf(battery,sizeof(battery),"Akku: %d %% (laedt)",*c->battery_percent);
+  }else{
+   int rem=get_battery_remaining_minutes();
+   if(rem>=0)snprintf(battery,sizeof(battery),"Akku: %d %%  ~%dh%02d",*c->battery_percent,rem/60,rem%60);
+   else snprintf(battery,sizeof(battery),"Akku: %d %%",*c->battery_percent);
+  }
  }else snprintf(battery,sizeof(battery),"Akku: --");
  snprintf(vol,sizeof(vol),"Lautstaerke: %d %%",(volume*100)/MIX_MAX_VOLUME);
  draw_text(c->renderer,c->font,battery,20,20,c->gray);
  draw_text_right(c->renderer,c->font,vol,SCREEN_W-20,20,c->gray);
  draw_text(c->renderer,c->font,c->book_names[*c->book_index],20,50,c->gray);
- draw_text(c->renderer,c->font,c->tracks[*c->track_index].name,20,100,c->selected);
+ const char *track_display=c->tracks[*c->track_index].name;if(*c->music){const char *id3_title=Mix_GetMusicTitleTag(*c->music);if(id3_title&&id3_title[0])track_display=id3_title;}
+ draw_text(c->renderer,c->font,track_display,20,100,c->selected);
  char tr[64];snprintf(tr,sizeof(tr),"Track %d / %d",*c->track_index+1,*c->track_count);draw_text(c->renderer,c->font,tr,20,142,c->white);
  if(*c->duration>0){
   char total[32],time[128];format_time(*c->duration,total,sizeof(total));

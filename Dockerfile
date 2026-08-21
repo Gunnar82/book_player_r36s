@@ -19,7 +19,7 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.2.11"' config.h && \
+RUN grep 'APP_VERSION "0.2.27"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'mpris_bridge_init' mpris_bridge.h && \
@@ -28,15 +28,24 @@ RUN grep 'APP_VERSION "0.2.11"' config.h && \
     grep -q 'SCREEN_DOWNLOADS' screens.h && \
     test -f download.c && \
     test -f mpris_bridge.c && \
+    test -f bluetooth.c && \
+    test -f hfp_gateway.c && \
+    test -f pbap_phonebook.c && \
+    test -f battery_bluez.c && \
+    grep -q 'org.bluez.Device1' bluetooth.c && \
+    test -f screens/bluetooth.c && \
+    test -f screens/downloadsettings.c && \
     test -f media_feedback.c && \
-    test -f screens/downloadbrowser.c
+    test -f app_log.c && \
+    test -f screens/downloadbrowser.c && \
+    test -f screens/logview.c
 
 RUN gcc -o hoerspiel_player \
-    main.c state.c backlight.c battery.c led.c scanner.c audio.c ui.c \
-    storage.c systemstats.c media_keys.c media_feedback.c mpris_bridge.c download.c \
+    main.c state.c backlight.c battery.c battery_bluez.c led.c scanner.c audio.c ui.c \
+    storage.c systemstats.c media_keys.c media_feedback.c app_log.c mpris_bridge.c bluetooth.c hfp_gateway.c pbap_phonebook.c download.c \
     screens/menu.c screens/tracks.c screens/player.c \
     screens/systemmenu.c screens/systeminfo.c screens/buttondebug.c \
-    screens/downloadbrowser.c \
+    screens/downloadbrowser.c screens/logview.c screens/bluetooth.c screens/downloadsettings.c \
     $(pkg-config --cflags --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd)
 
 RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'

@@ -18,6 +18,7 @@ typedef struct {
     int action_count;
     char title[256];
     char album[256];
+    char artist[256];
     char playback_status[16];
     int track_number;
     int track_count;
@@ -31,6 +32,7 @@ void mpris_bridge_close(MprisBridge *bridge);
 void mpris_bridge_update(MprisBridge *bridge,
                          const char *album,
                          const char *title,
+                         const char *artist,
                          int track_number,
                          int track_count,
                          double duration_seconds,

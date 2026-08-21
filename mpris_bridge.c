@@ -1,5 +1,6 @@
 #include "mpris_bridge.h"
 #include "media_feedback.h"
+#include "app_log.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -38,7 +39,7 @@ static int method_action(sd_bus_message *m, void *userdata, sd_bus_error *ret_er
     else if(!strcmp(member,"PlayPause"))action=MEDIA_KEY_PLAY_PAUSE;
     else if(!strcmp(member,"Stop"))action=MEDIA_KEY_STOP;
     else if(!strcmp(member,"Play"))action=MEDIA_KEY_PLAY;
-    if(action!=MEDIA_KEY_NONE){queue_action(b,action);media_feedback_show(action,-1,member);}
+    if(action!=MEDIA_KEY_NONE){queue_action(b,action);media_feedback_show(action,-1,member);app_logf("MPRIS Kommando: %s",member);}
     return sd_bus_reply_method_return(m,"");
 }
 
@@ -100,6 +101,7 @@ static int append_metadata(sd_bus_message *m,MprisBridge *b)
     ADD_O("mpris:trackid",track_path);
     ADD_S("xesam:title",b->title[0]?b->title:"--");
     ADD_S("xesam:album",b->album[0]?b->album:"--");
+    r=sd_bus_message_open_container(m,'e',"sv");if(r<0)return r;r=sd_bus_message_append(m,"s","xesam:artist");if(r<0)return r;r=sd_bus_message_open_container(m,'v',"as");if(r<0)return r;r=sd_bus_message_open_container(m,'a',"s");if(r<0)return r;r=sd_bus_message_append(m,"s",b->artist[0]?b->artist:"--");if(r<0)return r;r=sd_bus_message_close_container(m);if(r<0)return r;r=sd_bus_message_close_container(m);if(r<0)return r;r=sd_bus_message_close_container(m);if(r<0)return r;
     ADD_X("mpris:length",b->length_us);
     ADD_I("xesam:trackNumber",b->track_number);
 #undef ADD_S
@@ -224,10 +226,14 @@ static const sd_bus_vtable object_manager_vtable[]={
 
 static int register_bluez(MprisBridge *b)
 {
-    if(!b->system_bus||b->bluez_registered)return 0;
+    if(!b->system_bus)return 0;
     uint64_t now=monotonic_ms();
-    if(b->last_bluez_try_ms&&now-b->last_bluez_try_ms<2000)return 0;
+    /* Auch nach erfolgreicher Registrierung regelmaessig pruefen.
+       Der Bluetooth-Manager kann bluetoothd neu starten. BlueZ vergisst dabei
+       RegisterApplication(), waehrend unser Prozess weiterlaeuft. */
+    if(b->last_bluez_try_ms&&now-b->last_bluez_try_ms<5000)return 0;
     b->last_bluez_try_ms=now;
+    int was_registered=b->bluez_registered;
     for(int i=0;i<8;i++){
         char adapter[64];snprintf(adapter,sizeof(adapter),"/org/bluez/hci%d",i);
         sd_bus_message *m=NULL,*reply=NULL;
@@ -238,9 +244,18 @@ static int register_bluez(MprisBridge *b)
         if(r>=0)r=sd_bus_message_open_container(m,'a',"{sv}");
         if(r>=0)r=sd_bus_message_close_container(m);
         if(r>=0)r=sd_bus_call(b->system_bus,m,1000000,&error,&reply);
+        int already=(r<0&&sd_bus_error_has_name(&error,"org.bluez.Error.AlreadyExists"));
         sd_bus_error_free(&error);sd_bus_message_unref(reply);sd_bus_message_unref(m);
-        if(r>=0){b->bluez_registered=1;fprintf(stderr,"MPRIS/BlueZ: Media-Anwendung auf hci%d registriert.\n",i);return 1;}
+        if(r>=0||already){
+            b->bluez_registered=1;
+            if(r>=0){
+                app_logf(was_registered?"BlueZ Media nach Neustart erneut auf hci%d registriert":"BlueZ Media auf hci%d registriert",i);
+            }
+            return r>=0?1:0;
+        }
     }
+    if(was_registered)app_logf("BlueZ Media-Registrierung verloren; erneuter Versuch laeuft");
+    b->bluez_registered=0;
     return 0;
 }
 
@@ -252,13 +267,14 @@ void mpris_bridge_init(MprisBridge *b)
         int r=sd_bus_add_object_vtable(b->session_bus,&b->session_root_slot,MPRIS_PATH,ROOT_IFACE,root_vtable,b);
         if(r>=0)r=sd_bus_add_object_vtable(b->session_bus,&b->session_player_slot,MPRIS_PATH,PLAYER_IFACE,player_vtable,b);
         if(r>=0)r=sd_bus_request_name(b->session_bus,MPRIS_NAME,0);
-        if(r<0){fprintf(stderr,"MPRIS: Session-Bus nicht nutzbar (%d).\n",r);sd_bus_flush_close_unref(b->session_bus);b->session_bus=NULL;}
-        else fprintf(stderr,"MPRIS: %s bereit.\n",MPRIS_NAME);
+        if(r<0){app_logf("MPRIS Session-Bus nicht nutzbar (%d)",r);sd_bus_flush_close_unref(b->session_bus);b->session_bus=NULL;}
+        else app_logf("MPRIS %s bereit",MPRIS_NAME);
     }
     if(sd_bus_default_system(&b->system_bus)>=0){
         int r=sd_bus_add_object_vtable(b->system_bus,&b->bluez_manager_slot,BLUEZ_ROOT,"org.freedesktop.DBus.ObjectManager",object_manager_vtable,b);
         if(r>=0)r=sd_bus_add_object_vtable(b->system_bus,&b->bluez_player_slot,BLUEZ_PLAYER,PLAYER_IFACE,player_vtable,b);
-        if(r<0){fprintf(stderr,"MPRIS/BlueZ: System-Bus-Export fehlgeschlagen (%d).\n",r);sd_bus_flush_close_unref(b->system_bus);b->system_bus=NULL;}
+        if(r<0){app_logf("MPRIS/BlueZ System-Bus-Export fehlgeschlagen (%d)",r);sd_bus_flush_close_unref(b->system_bus);b->system_bus=NULL;}
+        else app_logf("MPRIS/BlueZ System-Bus Export bereit");
     }
 }
 
@@ -270,20 +286,23 @@ void mpris_bridge_close(MprisBridge *b)
     b->session_bus=sd_bus_flush_close_unref(b->session_bus);b->system_bus=sd_bus_flush_close_unref(b->system_bus);
 }
 
-void mpris_bridge_update(MprisBridge *b,const char *album,const char *title,int track_number,int track_count,
+void mpris_bridge_update(MprisBridge *b,const char *album,const char *title,const char *artist,int track_number,int track_count,
                          double duration_seconds,double position_seconds,int has_music,int paused,int playing,double volume)
 {
     if(!b)return;
-    char old_status[16],old_title[256],old_album[256];double old_volume=b->volume;
-    snprintf(old_status,sizeof(old_status),"%s",b->playback_status);snprintf(old_title,sizeof(old_title),"%s",b->title);snprintf(old_album,sizeof(old_album),"%s",b->album);
-    snprintf(b->album,sizeof(b->album),"%s",album?album:"");snprintf(b->title,sizeof(b->title),"%s",title?title:"");
+    char old_status[16],old_title[256],old_album[256],old_artist[256];double old_volume=b->volume;
+    snprintf(old_status,sizeof(old_status),"%s",b->playback_status);snprintf(old_title,sizeof(old_title),"%s",b->title);snprintf(old_album,sizeof(old_album),"%s",b->album);snprintf(old_artist,sizeof(old_artist),"%s",b->artist);
+    snprintf(b->album,sizeof(b->album),"%s",album?album:"");snprintf(b->title,sizeof(b->title),"%s",title?title:"");snprintf(b->artist,sizeof(b->artist),"%s",artist?artist:"");
     b->track_number=track_number;b->track_count=track_count;
     b->length_us=duration_seconds>0?(int64_t)(duration_seconds*1000000.0):0;
     b->position_us=position_seconds>0?(int64_t)(position_seconds*1000000.0):0;
     b->volume=volume<0?0:(volume>1?1:volume);
     snprintf(b->playback_status,sizeof(b->playback_status),"%s",!has_music?"Stopped":(paused||!playing?"Paused":"Playing"));
-    int meta_changed=strcmp(old_title,b->title)||strcmp(old_album,b->album);
+    int meta_changed=strcmp(old_title,b->title)||strcmp(old_album,b->album)||strcmp(old_artist,b->artist);
+    int title_changed=strcmp(old_title,b->title)!=0;
     int status_changed=strcmp(old_status,b->playback_status);
+    if(title_changed)app_logf("Media: Titel='%s' Album='%s' Artist='%s'",b->title,b->album,b->artist);
+    if(status_changed)app_logf("Media: Status=%s",b->playback_status);
     int volume_changed=(old_volume!=b->volume);
     if(b->session_bus&&(meta_changed||status_changed||volume_changed))
         sd_bus_emit_properties_changed(b->session_bus,MPRIS_PATH,PLAYER_IFACE,"PlaybackStatus","Metadata","Volume",NULL);
