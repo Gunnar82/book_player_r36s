@@ -74,6 +74,22 @@ Hörspielbibliothek
 
 Die Systempatches für PulseAudio 17 und BlueZ 5.82 sind ausführlich in [`pulse_patch/SYSTEM_PATCHES.md`](pulse_patch/SYSTEM_PATCHES.md) dokumentiert. Der PulseAudio-Quellpatch liegt unter `pulse_patch/patch_backend_native.py`.
 
+### Wichtiger Hinweis zum BlueZ/OBEX-PBAP-Patch
+
+Das serienmäßige `obexd` von DarkOSRE verwendet das Evolution-Data-Server-Backend (`phonebook-ebook.c`). Für das vom Player erzeugte dateibasierte Telefonbuch wird stattdessen ein **BlueZ 5.82 `obexd` mit `--with-phonebook=dummy`** benötigt.
+
+Die vollständige Anleitung in `pulse_patch/SYSTEM_PATCHES.md` beschreibt:
+
+- den ARM64-Build von BlueZ 5.82 mit `--enable-obex --with-phonebook=dummy`,
+- die zusätzlich benötigte Runtime `libical3t64`,
+- Sicherung und Austausch von `/usr/libexec/bluetooth/obexd`,
+- die Prüfung auf `obexd/plugins/phonebook-dummy.c`,
+- den Telefonbuchpfad `/home/ark/phonebook/telecom/pb/`,
+- den Boot-Service `/etc/systemd/system/obex-pbap.service` einschließlich User-D-Bus-Anbindung,
+- sowie die Wiederherstellung des originalen Debian-/DarkOSRE-`obexd`.
+
+Ohne diesen BlueZ/OBEX-Patch kann der Player zwar vCards erzeugen, das Navi erhält sie aber nicht über PBAP. Der Patch ist daher für die Hörspiel-Telefonbuchfunktion zwingend, nicht jedoch für die normale lokale Wiedergabe.
+
 Der Player erzeugt nach dem Bibliotheksscan vCards in:
 
 ```text
