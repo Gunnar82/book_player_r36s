@@ -4,7 +4,14 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.2.29-bt-id-hotplug**
+**0.2.30-idle-download-pause**
+
+### Änderungen 0.2.30
+
+- Während eines aktiven Hörspiel-Downloads wird der Idle-Timer pausiert.
+- Die Download-Dauer wird nicht auf die verbleibende Idle-Zeit angerechnet.
+- Nach erfolgreichem Download oder Abbruch läuft der Idle-Timer normal weiter.
+- Ist der Idle-Timer deaktiviert, ändert sich das Verhalten nicht.
 
 ### Änderungen 0.2.29
 
@@ -35,6 +42,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - ID3-Titelanzeige mit Dateinamen-Fallback
 - Akkuanzeige, Restlaufzeit und Lade-Restzeit bis voll
 - Lautstärke-, Helligkeits-, Sleep-, Idle- und Display-Timer
+- Idle-Timer pausiert während aktiver Downloads
 - MPRIS2/BlueZ-Media-Integration und Bluetooth-Autoconnect
 - Bluetooth-Hotplug und sauberer Betrieb ohne Bluetooth-Adapter
 - Downloads aus nginx-XML-Listings mit HTTPS/mTLS
@@ -149,7 +157,7 @@ docker buildx build \
   .
 ```
 
-Der Docker-Build prüft `APP_VERSION "0.2.29-bt-id-hotplug"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
+Der Docker-Build prüft `APP_VERSION "0.2.30-idle-download-pause"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
 
 ## Tests
 
