@@ -111,7 +111,7 @@ path=/roms2/hoerspiele
 
 [bluetooth]
 autoconnect=1
-device=FC:58:FA:FE:09:4C
+device=00:11:22:33:44:55
 ```
 
 ## ARM64-Build
