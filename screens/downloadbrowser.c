@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #define ROW_H 30
 #define TOP_Y 72
@@ -150,7 +151,13 @@ static void start_selected_download(ScreenContext *c)
     ui.total_start=SDL_GetTicks();
     ui.file_start=ui.total_start;
     ui.last_file_index=-1;
+    Uint32 idle_before=c->idle_timer_remaining_ms?*c->idle_timer_remaining_ms:0;
     int rc=remote_download_selection(selected,selected_count,progress_render,&ui,err,sizeof(err));
+    if(c->idle_timer_remaining_ms&&idle_before>0){
+        Uint32 elapsed=SDL_GetTicks()-ui.total_start;
+        uint64_t compensated=(uint64_t)idle_before+(uint64_t)elapsed;
+        *c->idle_timer_remaining_ms=compensated>UINT32_MAX?UINT32_MAX:(Uint32)compensated;
+    }
     if(rc>=0){snprintf(status,sizeof(status),"%d Dateien geladen. Neustart zum Einlesen.",rc);finished_download=1;selected_count=0;}
     else snprintf(status,sizeof(status),"%s",err[0]?err:"Download fehlgeschlagen");
 }
