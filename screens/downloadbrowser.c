@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 #define ROW_H 30
 #define TOP_Y 72
@@ -26,6 +25,7 @@ static char status[256]="";
 static int finished_download=0;
 static RemoteSelection selected[MAX_SELECTIONS];
 static int selected_count=0;
+static char return_selection_path[REMOTE_PATH_LEN]="";
 
 typedef struct {
     ScreenContext *screen;
@@ -36,8 +36,31 @@ typedef struct {
 } DownloadUiProgress;
 
 static void keep_visible(void){int rows=MAX_ROWS;if(selection<scroll_offset)scroll_offset=selection;if(selection>=scroll_offset+rows)scroll_offset=selection-rows+1;int max=entry_count-rows;if(max<0)max=0;if(scroll_offset<0)scroll_offset=0;if(scroll_offset>max)scroll_offset=max;}
-static void load_current(void){loading=1;status[0]='\0';entry_count=remote_fetch_listing(relative_path,entries,REMOTE_MAX_ENTRIES,status,sizeof(status));if(entry_count<0)entry_count=0;selection=0;scroll_offset=0;loaded=1;loading=0;finished_download=0;}
-static void parent_dir(void){if(!relative_path[0])return;char *slash=strrchr(relative_path,'/');if(slash)*slash='\0';else relative_path[0]='\0';loaded=0;}
+static void load_current(void){
+    loading=1;status[0]='\0';
+    entry_count=remote_fetch_listing(relative_path,entries,REMOTE_MAX_ENTRIES,status,sizeof(status));
+    if(entry_count<0)entry_count=0;
+    selection=0;scroll_offset=0;
+    if(return_selection_path[0]){
+        for(int i=0;i<entry_count;i++){
+            if(entries[i].type!=REMOTE_DIRECTORY)continue;
+            char candidate[REMOTE_PATH_LEN];
+            if(relative_path[0])snprintf(candidate,sizeof(candidate),"%s/%s",relative_path,entries[i].name);
+            else snprintf(candidate,sizeof(candidate),"%s",entries[i].name);
+            if(!strcmp(candidate,return_selection_path)){selection=i;break;}
+        }
+        return_selection_path[0]='\0';
+    }
+    keep_visible();
+    loaded=1;loading=0;finished_download=0;
+}
+static void parent_dir(void){
+    if(!relative_path[0])return;
+    snprintf(return_selection_path,sizeof(return_selection_path),"%s",relative_path);
+    char *slash=strrchr(relative_path,'/');
+    if(slash)*slash='\0';else relative_path[0]='\0';
+    loaded=0;
+}
 static void enter_directory(const char *name){if(relative_path[0])strncat(relative_path,"/",sizeof(relative_path)-strlen(relative_path)-1);strncat(relative_path,name,sizeof(relative_path)-strlen(relative_path)-1);loaded=0;}
 static void full_path_for_entry(int idx,char *out,size_t out_size){if(idx<0||idx>=entry_count){if(out_size)out[0]='\0';return;}if(relative_path[0])snprintf(out,out_size,"%s/%s",relative_path,entries[idx].name);else snprintf(out,out_size,"%s",entries[idx].name);}
 static int selected_index(const char *path){for(int i=0;i<selected_count;i++)if(!strcmp(selected[i].relative_path,path))return i;return -1;}
@@ -151,18 +174,12 @@ static void start_selected_download(ScreenContext *c)
     ui.total_start=SDL_GetTicks();
     ui.file_start=ui.total_start;
     ui.last_file_index=-1;
-    Uint32 idle_before=c->idle_timer_remaining_ms?*c->idle_timer_remaining_ms:0;
     int rc=remote_download_selection(selected,selected_count,progress_render,&ui,err,sizeof(err));
-    if(c->idle_timer_remaining_ms&&idle_before>0){
-        Uint32 elapsed=SDL_GetTicks()-ui.total_start;
-        uint64_t compensated=(uint64_t)idle_before+(uint64_t)elapsed;
-        *c->idle_timer_remaining_ms=compensated>UINT32_MAX?UINT32_MAX:(Uint32)compensated;
-    }
     if(rc>=0){snprintf(status,sizeof(status),"%d Dateien geladen. Neustart zum Einlesen.",rc);finished_download=1;selected_count=0;}
     else snprintf(status,sizeof(status),"%s",err[0]?err:"Download fehlgeschlagen");
 }
 
-void downloadbrowser_reset(void){relative_path[0]='\0';entry_count=0;selection=0;scroll_offset=0;loaded=0;status[0]='\0';finished_download=0;selected_count=0;}
+void downloadbrowser_reset(void){relative_path[0]='\0';return_selection_path[0]='\0';entry_count=0;selection=0;scroll_offset=0;loaded=0;status[0]='\0';finished_download=0;selected_count=0;}
 
 void downloadbrowser_handle_event(ScreenContext *c,const SDL_Event *e){
     if(!loaded&&!loading)load_current();
