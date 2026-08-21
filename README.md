@@ -4,7 +4,15 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 
 ## Version
 
-**0.2.27**
+**0.2.29-bt-id-hotplug**
+
+### Änderungen 0.2.29
+
+- Hörspiel-IDs werden nur angezeigt, wenn ein Bluetooth-Adapter vorhanden ist.
+- Die ID steht als Suffix hinter dem Hörspielnamen, z. B. `Hörspielname [1001]`, nicht mehr als Präfix.
+- Ohne Bluetooth-Adapter wird nur der Hörspielname angezeigt; die persistente ID bleibt intern für HFP/PBAP erhalten.
+- Bluetooth-Hotplug aktualisiert die Hörspielanzeige während der Laufzeit. Beim Ein- oder Ausstecken des Adapters werden die sichtbaren IDs ohne Player-Neustart ein- bzw. ausgeblendet.
+- Die aktuelle Auswahl und Browserposition bleiben beim Aktualisieren der Anzeige erhalten.
 
 ### Änderungen 0.2.27
 
@@ -20,7 +28,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 ## Funktionen
 
 - Hörspiel- und Trackauswahl mit Resume und verschachtelten Hörspielordnern
-- persistente Hörspiel-ID für HFP/PBAP
+- persistente Hörspiel-ID für HFP/PBAP; sichtbar als Suffix nur bei vorhandenem Bluetooth-Adapter
 - automatisches PBAP-vCard-Telefonbuch unter `$HOME/phonebook/telecom/pb/`
 - HFP-Wahl eines Telefonbucheintrags startet das zugehörige Hörspiel
 - Track- und Gesamtfortschritt mit Fortschrittsbalken
@@ -46,7 +54,7 @@ Hörspiel-Player für den R36S auf Basis von SDL2/SDL2_mixer/SDL2_ttf.
 - `L1`/`R1`: seitenweise navigieren
 - `L2`/`R2`: Anfang/Ende
 
-Analoge Joystick-Achsen werden seit 0.2.26/0.2.27 bewusst nicht mehr ausgewertet.
+Analoge Joystick-Achsen werden bewusst nicht mehr ausgewertet.
 
 ## Bluetooth, HFP und PBAP
 
@@ -78,7 +86,7 @@ Auf dem R36S mit Benutzer `ark` also normalerweise:
 /home/ark/phonebook/telecom/pb/
 ```
 
-Fehlt ein Bluetooth-Adapter, werden Bluetooth-spezifische Funktionen deaktiviert. Der Adapterzustand wird während der Laufzeit geprüft; beim späteren Einstecken werden BatteryProvider, HFP-IPC, MPRIS/BlueZ und Autoconnect wieder initialisiert.
+Fehlt ein Bluetooth-Adapter, werden Bluetooth-spezifische Funktionen deaktiviert. Der Adapterzustand wird während der Laufzeit geprüft; beim späteren Einstecken werden BatteryProvider, HFP-IPC, MPRIS/BlueZ und Autoconnect wieder initialisiert. Die sichtbaren Hörspiel-IDs werden bei Hotplug ebenfalls ohne Neustart aktualisiert.
 
 ## Akku
 
@@ -125,7 +133,7 @@ docker buildx build \
   .
 ```
 
-Der Docker-Build prüft `APP_VERSION "0.2.27"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
+Der Docker-Build prüft `APP_VERSION "0.2.29-bt-id-hotplug"` und baut unter anderem die integrierten HFP-/PBAP-Module mit.
 
 ## Tests
 
