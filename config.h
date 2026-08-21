@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #define APP_NAME "Hoerspiel Player"
-#define APP_VERSION "0.2.31-download-skip-return"
+#define APP_VERSION "0.2.32-idle-reset"
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define MAX_BOOKS 200
