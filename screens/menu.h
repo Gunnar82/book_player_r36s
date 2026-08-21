@@ -4,6 +4,7 @@
 
 void menu_handle_event(ScreenContext *ctx, const SDL_Event *e);
 void menu_render(ScreenContext *ctx);
+void menu_invalidate(void);
 
 /*
  * main.c bindet backlight.h vor menu.h ein. Dadurch koennen wir den
