@@ -12,7 +12,8 @@ typedef enum {
     SCREEN_DOWNLOADS = 7,
     SCREEN_LOG = 8,
     SCREEN_BLUETOOTH = 9,
-    SCREEN_DOWNLOAD_SETTINGS = 10
+    SCREEN_DOWNLOAD_SETTINGS = 10,
+    SCREEN_STREAMS = 11
 } ScreenId;
 
 #endif

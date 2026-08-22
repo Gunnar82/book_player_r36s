@@ -4,7 +4,22 @@ Hörspiel-Player für den R36S und weitere Linux-Handhelds auf Basis von SDL2, S
 
 ## Version
 
-**0.2.35-input-config**
+**0.3**
+
+### Änderungen 0.3
+
+- Neuer Menüpunkt **Streams** für Online-Radio/Online-Audio.
+- Streamlisten werden aus einer lokalen XML-Datei oder über HTTP/HTTPS geladen.
+- HTTPS unterstützt optional Client-Zertifikate. Der Zertifikatsmodus ist unter `Einstellungen -> Streams Zertifikat` wählbar: `Keins`, `Downloads` oder `Separat`.
+- Im Modus `Downloads` werden die bereits für Downloads konfigurierten CA-/Client-Zertifikate verwendet. `Separat` nutzt eigene Zertifikatspfade aus `[streams]`.
+- Die `[streams]`-Optionen werden bei Updates automatisch in einer vorhandenen `config.ini` ergänzt, ohne bestehende Werte zu überschreiben.
+- Stream-Favoriten werden anhand der stabilen `stationuuid` gespeichert. Im Streams-Menü gilt: **Y** Favorit setzen/entfernen, **X** zwischen `Alle` und `Favoriten` wechseln.
+- Im Streams-Menü entsprechen die hinteren Tasten dem Download-Browser: **L1/R1** seitenweise, **L2/R2** Anfang/Ende.
+- Die Stationsliste ist dynamisch und nicht mehr auf 4096 Einträge begrenzt. Sie wächst per `realloc()` entsprechend dem verfügbaren RAM.
+- Streams werden über **FFmpeg** als externes Audio-Backend wiedergegeben. Pause/Weiter erfolgt über `SIGSTOP`/`SIGCONT`; soweit vorhanden werden ICY-/`StreamTitle`-Metadaten auf dem Wiedergabebildschirm angezeigt.
+- D-Pad Hoch/Runter unterstützt in Menüs und Listen Halte-Wiederholung: nach ca. 400 ms beginnt Auto-Repeat, nach 5 Sekunden wird beschleunigt.
+- Der GPM2804-Port ist als **Batocera**-Variante dokumentiert. Das alternative Dockerfile heißt `Dockerfile.gpm2804-batocera`.
+- Der Batocera-Starter verwendet `/userdata/roms/ports/Hoerspiel Player`, richtet den DejaVu-Fontpfad ein und stellt `libsystemd.so.0` über `LD_LIBRARY_PATH` bereit.
 
 ### Änderungen 0.2.35
 
@@ -13,37 +28,28 @@ Hörspiel-Player für den R36S und weitere Linux-Handhelds auf Basis von SDL2, S
 - Im R36S-Profil werden analoge Achsen weiterhin vollständig ignoriert. Dadurch bleibt der Schutz gegen Phantom-Eingaben bei USB-/Ladezustandswechseln erhalten.
 - Ein `custom`-Profil kann Buttons frei zuordnen und ein D-Pad über SDL-Achsen auswerten.
 - Nicht vorhandene Tasten können mit `-1` deaktiviert werden.
-- Getestetes Profil für Waveshare GPM2804 unter Batocera/Recalbox ist dokumentiert.
-- Alternatives ARM64-Dockerfile `Dockerfile.gpm2804-recalbox` erzeugt ein portables Runtime-Paket mit Shared Libraries, ARM64-Loader, Starter-Script und Beispielkonfiguration.
 
 ### Änderungen 0.2.34
 
-- Neue persistente Einstellung `Schriftgroesse` unter `Einstellungen -> AUDIO / DISPLAY`.
+- Persistente Einstellung `Schriftgroesse` unter `Einstellungen -> AUDIO / DISPLAY`.
 - Stufen: `Klein`, `Normal`, `Gross`, `Sehr gross`.
 - Hörspiel-, Track-, Download-, System- und Einstellungslisten passen Schriftgröße, Zeilenhöhe und sichtbare Zeilenanzahl an.
 - `Normal` entspricht dem bisherigen R36S-Layout. `Gross` und `Sehr gross` eignen sich für kleinere 640×480-Panels wie den Waveshare GPM2804.
-- Der Wiedergabebildschirm bleibt bewusst unverändert, damit Fortschritts-, Akku- und Statuslayout stabil bleiben.
 
 ### Änderungen 0.2.33
 
-- In Hörspiel-Browser, Trackauswahl, Systemmenü und Download-Browser gilt zusätzlich: D-Pad links = zurück, D-Pad rechts = A/Auswählen. Im Wiedergabebildschirm bleibt links/rechts Track zurück/weiter; in den Einstellungen bleibt links/rechts für Wertänderungen reserviert.
-- Bei aktiver Tastensperre bleibt der Wiedergabebildschirm sichtbar. Oben rechts zeigt ein kleines grafisches Schloss den gesperrten Zustand an.
-- Ein Tastendruck im gesperrten Zustand blendet die Entsperrsequenz ein. Jeder weitere Tastendruck startet die 5-Sekunden-Anzeige erneut. Nach 5 Sekunden ohne Eingabe erscheint wieder die Wiedergabe; die Sperre bleibt aktiv.
+- In Hörspiel-Browser, Trackauswahl, Systemmenü und Download-Browser gilt zusätzlich: D-Pad links = zurück, D-Pad rechts = A/Auswählen.
+- Bei aktiver Tastensperre bleibt der Wiedergabebildschirm sichtbar; oben rechts zeigt ein Schloss den gesperrten Zustand an.
+- Ein Tastendruck im gesperrten Zustand blendet die Entsperrsequenz ein. Nach 5 Sekunden ohne Eingabe erscheint wieder die Wiedergabe; die Sperre bleibt aktiv.
 - Unter Einstellungen gibt es eine persistente Nutzungsstatistik mit App-Starts, gesamter Laufzeit und tatsächlicher Hörzeit.
 
 ### Änderungen 0.2.32 / 0.2.31
 
 - Tastendrücke sowie abgeschlossene oder abgebrochene Downloads setzen einen aktiven Idle-Timer auf seinen vollständigen Ausgangswert zurück.
-- Während des Downloads läuft der Idle-Timer nicht ab.
+- Während eines Downloads läuft der Idle-Timer nicht ab.
 - Lokal vorhandene Dateien werden übersprungen, wenn ihre Größe exakt der Servergröße entspricht.
-- Bei abweichender oder unbekannter Größe wird weiterhin sicher über `.part` geladen und erst nach Erfolg ersetzt.
+- Bei abweichender oder unbekannter Größe wird sicher über `.part` geladen und erst nach Erfolg ersetzt.
 - Beim Zurückgehen im Download-Browser bleibt der zuvor geöffnete Ordner markiert.
-
-### Änderungen 0.2.29
-
-- Hörspiel-IDs werden nur bei vorhandenem Bluetooth-Adapter sichtbar und als Suffix angezeigt, z. B. `Hörspielname [1001]`.
-- Bluetooth-Hotplug aktualisiert die sichtbaren IDs ohne Player-Neustart.
-- Die persistente ID bleibt unabhängig von der Anzeige für HFP/PBAP erhalten.
 
 ## Steuerung
 
@@ -77,7 +83,7 @@ Ohne `[input]`-Abschnitt gelten dieselben R36S-Standardwerte.
 
 ### Waveshare GPM2804 / Batocera
 
-Beim getesteten Microntek-USB-Joystick wird das D-Pad unter Batocera als SDL-Achse geliefert. Das passende Profil ist:
+Beim getesteten Microntek-USB-Joystick wird das D-Pad unter Batocera als SDL-Achse geliefert:
 
 ```ini
 [input]
@@ -101,6 +107,10 @@ select=8
 
 Ermittelte Joystick-Belegung: A=2, B=1, X=3, Y=0, L1=4, Select=8, Start=9. R1 lieferte auf dem getesteten Gerät kein Event; L2/R2 sind dort nicht vorhanden.
 
+## Menünavigation
+
+In Menüs und Listen kann D-Pad **Hoch/Runter** gehalten werden. Nach ungefähr 400 ms startet die Wiederholung. Nach 5 Sekunden Halten wird schneller gescrollt. Wiedergabebildschirm und Button-Debug sind davon ausgenommen.
+
 ## Schriftgröße
 
 Unter `Einstellungen -> AUDIO / DISPLAY -> Schriftgroesse` stehen vier Stufen zur Verfügung:
@@ -110,15 +120,90 @@ Unter `Einstellungen -> AUDIO / DISPLAY -> Schriftgroesse` stehen vier Stufen zu
 - `Gross` = 26 px
 - `Sehr gross` = 32 px
 
-Die Einstellung wird persistent in der Statusdatei gespeichert.
+Die Einstellung wird persistent gespeichert.
 
 ## Downloads
 
-Downloads stammen aus nginx-XML-Listings über HTTP/HTTPS, optional mit eigener CA und mTLS. Bereits vollständig vorhandene Dateien werden anhand identischer Dateigröße übersprungen. Downloads laufen zuerst in eine `.part`-Datei. Erst nach erfolgreichem Abschluss ersetzt diese die Zieldatei.
+Downloads stammen aus nginx-XML-Listings über HTTP/HTTPS, optional mit eigener CA und mTLS. Bereits vollständig vorhandene Dateien werden anhand identischer Dateigröße übersprungen. Downloads laufen zuerst in eine `.part`-Datei; erst nach erfolgreichem Abschluss ersetzt diese die Zieldatei.
+
+## Streams
+
+Die Streamliste wird über `[streams]` in `config.ini` konfiguriert. `xml_url` darf ein lokaler Dateipfad oder eine HTTP/HTTPS-Adresse sein.
+
+```ini
+[streams]
+# lokal:
+xml_url=/roms/ports/Hoerspiel Player/stations.xml
+
+# alternativ online:
+# xml_url=https://example.org/stations.xml
+
+# none | downloads | separate
+client_cert_mode=none
+ca_cert=
+client_cert=
+client_key=
+client_key_password=
+```
+
+Die eigentliche Stationsdatei wird **nicht** mit dem Projekt ausgeliefert.
+
+### Streams-XML: Syntax
+
+Die XML verwendet `<station ...>`-Elemente mit Attributen. Beispiel:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<stations>
+  <station
+    stationuuid="eindeutige-stabile-id"
+    name="Beispiel Sender"
+    url="https://example.org/stream.mp3"
+    url_resolved="https://cdn.example.org/stream.mp3"
+    codec="MP3"
+    bitrate="128"
+    hls="0"
+    favicon=""
+    tags="beispiel">
+  </station>
+</stations>
+```
+
+Wichtig:
+
+- `stationuuid` muss pro Sender eindeutig und dauerhaft stabil sein. Der Player verwendet sie für Favoriten.
+- `name` ist der angezeigte Sendername.
+- Für die Wiedergabe wird bevorzugt `url_resolved` verwendet; wenn es fehlt, fällt der Player auf `url` zurück.
+- `codec`, `tags` und `favicon` werden eingelesen. Weitere Attribute können in der XML vorhanden sein.
+- XML-Entities wie `&amp;`, `&quot;`, `&apos;`, `&lt;` und `&gt;` werden dekodiert.
+- Sehr große Listen werden dynamisch eingelesen; es gibt keine feste 4096-Sender-Grenze mehr.
+
+### Streams-Steuerung
+
+- `A` / D-Pad rechts: Stream starten
+- `B` / D-Pad links: zurück
+- `Y`: Favorit setzen/entfernen
+- `X`: Alle/Favoriten umschalten
+- `L1` / `R1`: eine Seite zurück/vor
+- `L2` / `R2`: Anfang/Ende der Liste
+
+Auf dem Wiedergabebildschirm steuern `A`/`START` Pause/Weiter und `B` beendet den Stream.
+
+### FFmpeg-Backend
+
+Streams verwenden `ffmpeg` als Audio-Backend. Voraussetzung auf dem Zielsystem:
+
+```bash
+which ffmpeg
+ffmpeg -version
+ffmpeg -devices | grep -i alsa
+```
+
+FFmpeg wird Audio-only gestartet und gibt über ALSA `default` aus. Netzwerkstreams verwenden Reconnect-Optionen. ICY-/`StreamTitle`-Metadaten werden aus der FFmpeg-Ausgabe gelesen, soweit der Sender sie liefert.
 
 ## Bluetooth, HFP und PBAP
 
-Die Navi-Integration besteht aus Player-Logik und zwei Systempatches:
+Die Navi-Integration besteht aus Player-Logik und Systempatches:
 
 ```text
 Hörspielbibliothek
@@ -132,58 +217,57 @@ Hörspielbibliothek
   -> Player startet das Hörspiel
 ```
 
-Die vollständige Anleitung für PulseAudio 17 und BlueZ 5.82 liegt in [`pulse_patch/SYSTEM_PATCHES.md`](pulse_patch/SYSTEM_PATCHES.md). Der PulseAudio-Quellpatch liegt unter `pulse_patch/patch_backend_native.py`.
+Die Patch-Dokumentation liegt im Verzeichnis `pulse_patch/`. Ohne die Systempatches funktioniert die normale lokale Wiedergabe weiterhin; PBAP-/HFP-Sonderfunktionen können jedoch fehlen.
 
-### BlueZ/OBEX-PBAP
-
-Das serienmäßige DarkOSRE-`obexd` verwendet `phonebook-ebook.c`. Für das vom Player erzeugte dateibasierte Telefonbuch wird BlueZ 5.82 mit `--with-phonebook=dummy` benötigt.
-
-Die Patch-Dokumentation beschreibt unter anderem:
-
-- ARM64-Build von BlueZ 5.82 mit `--enable-obex --with-phonebook=dummy`
-- Runtime-Paket `libical3t64`
-- Sicherung und Austausch von `/usr/libexec/bluetooth/obexd`
-- Prüfung auf `obexd/plugins/phonebook-dummy.c`
-- Telefonbuchpfad `/home/ark/phonebook/telecom/pb/`
-- Boot-Service `/etc/systemd/system/obex-pbap.service` mit User-D-Bus-Anbindung
-- Wiederherstellung des originalen `obexd`
-
-Ohne diesen Patch funktioniert die normale lokale Wiedergabe weiterhin, das erzeugte vCard-Telefonbuch wird jedoch nicht über PBAP an das Navi geliefert.
-
-Fehlt ein Bluetooth-Adapter, werden Bluetooth-spezifische Funktionen deaktiviert. Hotplug wird während der Laufzeit erkannt.
-
-## Standard-ARM64-Build
+## R36S ARM64-Build
 
 ```bash
-docker buildx build \
+docker build --no-cache --platform linux/arm64 -t hoerspiel-player-r36s .
+```
+
+Binary herauskopieren:
+
+```bash
+docker create --name hoerspiel-r36s hoerspiel-player-r36s /bin/true
+docker cp hoerspiel-r36s:/build/hoerspiel_player ./hoerspiel_player
+docker rm hoerspiel-r36s
+```
+
+## GPM2804 / Batocera-Build
+
+Das separate `Dockerfile.gpm2804-batocera` erzeugt ein portables ARM64-Paket. Für die Ausgabe ist die `export`-Stage vorgesehen:
+
+```bash
+rm -rf ./dist-batocera
+
+docker build \
+  --no-cache \
   --platform linux/arm64 \
-  --output type=local,dest=./out \
+  -f Dockerfile.gpm2804-batocera \
+  --target export \
+  --output type=local,dest=./dist-batocera \
   .
 ```
 
-## Alternatives GPM2804/Recalbox/Batocera-Dockerfile
+Die Ausgabe enthält unter anderem:
 
-Zusätzlich liegt `Dockerfile.gpm2804-recalbox` bei. Es baut ein portables ARM64-Paket inklusive benötigter dynamischer Bibliotheken und `/lib/ld-linux-aarch64.so.1`. Der Starter kopiert die Runtime von einem nicht ausführbaren SHARE-Dateisystem nach `/tmp/hoerspiel-player` und startet den Player dort mit eigenem Library-Pfad.
-
-```bash
-docker buildx build \
-  --platform linux/arm64 \
-  -f Dockerfile.gpm2804-recalbox \
-  --output type=local,dest=./out-gpm2804 \
-  .
+```text
+dist-batocera/
+├── hoerspiel_player
+├── hoerspiel.sh
+├── config.gpm2804.ini
+└── lib/
 ```
 
-Die Ausgabe enthält zusätzlich `config.gpm2804.ini` mit der getesteten Controllerbelegung.
+Der Starter erwartet den Player unter `/userdata/roms/ports/Hoerspiel Player`, legt den Debian-kompatiblen DejaVu-Fontpfad an und stellt die benötigte `libsystemd.so.0` über `/tmp/hoerspiel-libs` bereit.
 
 ## Konfiguration
 
-Beispiel:
+Die mitgelieferte `config.ini.example` zeigt Storage-, Download-, Bluetooth-, Input- und Streams-Einstellungen. Fehlende `[streams]`-Optionen werden beim Start automatisch ergänzt.
+
+Beispiel für Bluetooth:
 
 ```ini
-[storage]
-path=/roms/hoerspiele
-path=/roms2/hoerspiele
-
 [bluetooth]
 autoconnect=1
 device=00:11:22:33:44:55
@@ -200,7 +284,7 @@ Weitere Hinweise:
 - `TEST_0.2.27.md`
 - `HFP_TEST.md`
 - `PBAP_TEST.md`
-- `pulse_patch/SYSTEM_PATCHES.md`
+- `pulse_patch/README.md`
 
 ## Lizenz
 

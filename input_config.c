@@ -1,4 +1,3 @@
-#define INPUT_CONFIG_NO_POLL_WRAP
 #include "input_config.h"
 #include "config.h"
 #include "storage.h"
@@ -23,7 +22,27 @@ typedef struct {
 } InputConfig;
 
 static InputConfig cfg;
-static int cfg_loaded=0;
+#define REPEAT_EVENT_WHICH ((SDL_JoystickID)-4242)
+static int repeat_button=-1;
+static Uint32 repeat_started=0;
+static Uint32 repeat_next=0;
+
+static void repeat_press(int button,Uint32 now){
+    if(button!=BUTTON_DPAD_UP&&button!=BUTTON_DPAD_DOWN)return;
+    if(repeat_button!=button){
+        repeat_button=button;
+        repeat_started=now;
+        repeat_next=now+400U;
+    }
+}
+static void repeat_release(int button){
+    if(button==repeat_button){
+        repeat_button=-1;
+        repeat_started=0;
+        repeat_next=0;
+    }
+}
+
 
 static void trim(char *s)
 {
@@ -72,7 +91,7 @@ void input_config_load(void)
 {
     defaults();
     FILE *fp=fopen(get_storage_config_path(),"r");
-    if(!fp){app_logf("Input: config.ini nicht lesbar, R36S-Standard");cfg_loaded=1;return;}
+    if(!fp){app_logf("Input: config.ini nicht lesbar, R36S-Standard");return;}
     int in_input=0;
     char line[512];
     while(fgets(line,sizeof(line),fp)){
@@ -89,7 +108,6 @@ void input_config_load(void)
     if(cfg.deadzone<1000)cfg.deadzone=1000;
     if(cfg.deadzone>32000)cfg.deadzone=32000;
     if(!cfg.custom)cfg.axis_mode=0;
-    cfg_loaded=1;
     app_logf("Input: Profil %s, D-Pad %s",cfg.custom?"custom":"r36s",cfg.axis_mode?"axis":"buttons");
 }
 
@@ -130,17 +148,40 @@ static void make_button(SDL_Event *e,Uint8 button)
     e->jbutton.state=SDL_PRESSED;
 }
 
+
+int input_repeat_event(SDL_Event *e,Uint32 now,int enabled)
+{
+    if(!enabled||repeat_button<0)return 0;
+    if((Sint32)(now-repeat_next)<0)return 0;
+
+    Uint32 held=now-repeat_started;
+    Uint32 interval=(held>=5000U)?70U:160U;
+    repeat_next=now+interval;
+
+    memset(e,0,sizeof(*e));
+    e->type=SDL_JOYBUTTONDOWN;
+    e->jbutton.type=SDL_JOYBUTTONDOWN;
+    e->jbutton.which=REPEAT_EVENT_WHICH;
+    e->jbutton.button=(Uint8)repeat_button;
+    e->jbutton.state=SDL_PRESSED;
+    return 1;
+}
+
 int input_normalize_event(SDL_Event *e)
 {
     if(!e)return 0;
     if(e->type==SDL_JOYBUTTONDOWN||e->type==SDL_JOYBUTTONUP){
+        if(e->jbutton.which==REPEAT_EVENT_WHICH)return 1;
         int b=remap_button(e->jbutton.button);
         if(b<0)return cfg.custom?0:1;
         e->jbutton.button=(Uint8)b;
+        if(e->type==SDL_JOYBUTTONDOWN)repeat_press(b,SDL_GetTicks());
+        else repeat_release(b);
         return 1;
     }
     if(e->type!=SDL_JOYAXISMOTION)return 1;
-    if(!cfg.custom||!cfg.axis_mode)return 0;
+    if(!cfg.custom||!cfg.axis_mode)return 0; /* R36S: Achsen weiterhin komplett ignorieren */
+
     int axis=e->jaxis.axis;
     int value=e->jaxis.value;
     if(axis==cfg.axis_x){
@@ -151,20 +192,11 @@ int input_normalize_event(SDL_Event *e)
         return 0;
     }
     if(axis==cfg.axis_y){
-        if(abs(value)<cfg.deadzone/2){cfg.axis_y_active=0;return 0;}
+        if(abs(value)<cfg.deadzone/2){repeat_release(BUTTON_DPAD_UP);repeat_release(BUTTON_DPAD_DOWN);cfg.axis_y_active=0;return 0;}
         if(cfg.axis_y_active)return 0;
-        if(value<=-cfg.deadzone){cfg.axis_y_active=1;make_button(e,BUTTON_DPAD_UP);return 1;}
-        if(value>= cfg.deadzone){cfg.axis_y_active=1;make_button(e,BUTTON_DPAD_DOWN);return 1;}
+        if(value<=-cfg.deadzone){cfg.axis_y_active=1;make_button(e,BUTTON_DPAD_UP);repeat_press(BUTTON_DPAD_UP,SDL_GetTicks());return 1;}
+        if(value>= cfg.deadzone){cfg.axis_y_active=1;make_button(e,BUTTON_DPAD_DOWN);repeat_press(BUTTON_DPAD_DOWN,SDL_GetTicks());return 1;}
         return 0;
-    }
-    return 0;
-}
-
-int input_poll_event(SDL_Event *event)
-{
-    if(!cfg_loaded)input_config_load();
-    while(SDL_PollEvent(event)){
-        if(input_normalize_event(event))return 1;
     }
     return 0;
 }

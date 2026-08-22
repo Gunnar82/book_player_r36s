@@ -5,6 +5,7 @@
 #include "../backlight.h"
 #include "../ui.h"
 #include "../media_feedback.h"
+#include "../streaming.h"
 #include <stdlib.h>
 
 static void start_current(ScreenContext *c,double resume){
@@ -34,6 +35,7 @@ static void seek_relative(ScreenContext *c,double seconds){
 }
 
 void player_handle_event(ScreenContext *c,const SDL_Event *e){
+ if(streaming_is_active()&&e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;if(b==BUTTON_B){streaming_stop();return;}if(b==BUTTON_A||b==BUTTON_START){streaming_toggle_pause();return;}}
  if(e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;
   if(b==BUTTON_B){int pi=ensure_book_progress(c->book_paths[*c->book_index]);if(pi>=0){progress[pi].track=*c->track_index;progress[pi].position=get_position(*c->base_position,*c->started_ticks,*c->paused);}save_state();*c->screen=SCREEN_TRACKS;return;}
   if(b==BUTTON_A){if(!*c->music)start_current(c,*c->base_position);else if(*c->paused){Mix_ResumeMusic();*c->started_ticks=SDL_GetTicks();*c->paused=0;}else if(Mix_PlayingMusic()){*c->base_position=get_position(*c->base_position,*c->started_ticks,0);Mix_PauseMusic();*c->paused=1;}return;}
@@ -55,6 +57,7 @@ void player_handle_event(ScreenContext *c,const SDL_Event *e){
 }
 
 void player_render(ScreenContext *c){
+ if(streaming_is_active()){char station[256]="",title[512]="",extra[128]="";streaming_get_metadata(station,sizeof(station),title,sizeof(title),extra,sizeof(extra));if(!station[0])snprintf(station,sizeof(station),"%s",streaming_current_name());draw_text(c->renderer,c->font,station,20,50,c->gray);draw_text(c->renderer,c->font,title[0]?title:"Online Stream",20,100,c->selected);draw_text(c->renderer,c->font,extra[0]?extra:"LIVE",20,145,c->white);draw_text(c->renderer,c->font,"A/START: Pause/Play   B: Stop   X: System",20,SCREEN_H-35,c->gray);return;}
  if(*c->track_count<=0){draw_text(c->renderer,c->font,"Keine Hoerspiele gefunden",20,100,c->gray);media_feedback_render(c->renderer,c->font,c->selected,c->gray);return;}
  double pos=get_position(*c->base_position,*c->started_ticks,*c->paused);if(pos<0)pos=0;
  double pct=*c->duration>0?(pos/ *c->duration)*100.0:0;if(pct>100)pct=100;

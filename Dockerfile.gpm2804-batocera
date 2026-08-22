@@ -18,7 +18,7 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.2.35-input-config"' config.h && \
+RUN grep 'APP_VERSION "0.3"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && \
@@ -65,6 +65,7 @@ RUN gcc -O2 -o hoerspiel_player \
     pbap_phonebook.c \
     download.c \
     input_config.c \
+    streaming.c \
     screens/menu.c \
     screens/tracks.c \
     screens/player.c \
@@ -72,6 +73,7 @@ RUN gcc -O2 -o hoerspiel_player \
     screens/systeminfo.c \
     screens/buttondebug.c \
     screens/downloadbrowser.c \
+    screens/streams.c \
     screens/logview.c \
     screens/bluetooth.c \
     screens/downloadsettings.c \
@@ -85,7 +87,7 @@ RUN gcc -O2 -o hoerspiel_player \
 RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
 
 #
-# Portable Recalbox-/Batocera-Paket erzeugen
+# Portables Batocera-Paket erzeugen
 #
 RUN mkdir -p /dist/lib
 
@@ -146,31 +148,29 @@ RUN echo "=== Binary ===" && \
     ldd /dist/hoerspiel_player
 
 #
-# Starter für Recalbox.
+# Starter für Batocera.
 #
-# SHARE ist bei deinem Gerät exFAT und nicht ausführbar.
-# Deshalb wird das komplette Runtime-Paket nach /tmp kopiert.
+# Startet direkt aus /userdata. Nur libsystemd.so.0 wird per LD_LIBRARY_PATH bereitgestellt.
 #
 RUN cat > /dist/hoerspiel.sh <<'EOF'
-#!/bin/sh
+#!/bin/bash
 
-SOURCE="/recalbox/share/roms/ports/Hoerspiel Player"
-RUNTIME="/tmp/hoerspiel-player"
+APPDIR="/userdata/roms/ports/Hoerspiel Player"
 
-rm -rf "$RUNTIME"
-mkdir -p "$RUNTIME/lib"
+# Debian/R36S-kompatiblen Fontpfad auf Batocera bereitstellen
+mkdir -p /usr/share/fonts/truetype/dejavu
+ln -sf /usr/share/fonts/dejavu/DejaVuSans.ttf \
+  /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
 
-cp "$SOURCE/hoerspiel_player" "$RUNTIME/hoerspiel_player"
-cp "$SOURCE/lib/"* "$RUNTIME/lib/"
+# Fehlende libsystemd fuer den Player bereitstellen
+mkdir -p /tmp/hoerspiel-libs
+cp "$APPDIR/lib/libsystemd.so.0" /tmp/hoerspiel-libs/
 
-chmod +x "$RUNTIME/hoerspiel_player"
-chmod +x "$RUNTIME/lib/ld-linux-aarch64.so.1"
+cd "$APPDIR"
 
-cd "$SOURCE"
+export LD_LIBRARY_PATH="/tmp/hoerspiel-libs"
 
-exec "$RUNTIME/lib/ld-linux-aarch64.so.1" \
-    --library-path "$RUNTIME/lib" \
-    "$RUNTIME/hoerspiel_player"
+exec "$APPDIR/hoerspiel_player"
 EOF
 
 #

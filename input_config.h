@@ -10,11 +10,9 @@ int input_config_is_custom(void);
  */
 int input_normalize_event(SDL_Event *event);
 
-/* Transparenter Poll-Wrapper: damit bleibt main.c kompatibel, und die
- * Eingaben werden vor der bisherigen R36S-Logik normalisiert. */
-int input_poll_event(SDL_Event *event);
-#ifndef INPUT_CONFIG_NO_POLL_WRAP
-#define SDL_PollEvent input_poll_event
-#endif
+
+/* D-Pad-Haltewiederholung fuer Menues. Liefert bei Bedarf ein bereits
+   normalisiertes SDL_JOYBUTTONDOWN-Event. */
+int input_repeat_event(SDL_Event *e, Uint32 now, int enabled);
 
 #endif

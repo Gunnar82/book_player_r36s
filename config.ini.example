@@ -60,3 +60,15 @@ l2=6
 r2=7
 start=13
 select=12
+
+[streams]
+# Lokaler Dateipfad oder http(s)-URL:
+# xml_url=/roms/ports/Hoerspiel Player/stations.xml
+xml_url=https://example.org/streams.xml
+# none | downloads | separate
+client_cert_mode=none
+# Nur bei separate:
+ca_cert=
+client_cert=
+client_key=
+client_key_password=
