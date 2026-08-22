@@ -5,6 +5,7 @@
 extern int volume;
 extern int idle_timer_minutes;
 extern int display_timeout_seconds;
+extern int menu_font_size;
 extern unsigned long long usage_app_starts;
 extern unsigned long long usage_runtime_seconds;
 extern unsigned long long usage_playback_seconds;

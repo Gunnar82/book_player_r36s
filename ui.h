@@ -17,4 +17,10 @@ void draw_text_right(SDL_Renderer *r, TTF_Font *font, const char *text,
 /* Formatiert Sekunden als "m:ss" bzw. "h:mm:ss". */
 void format_time(double seconds, char *out, size_t size);
 
+int menu_font_pixels(void);
+int menu_line_height(void);
+void menu_font_apply(TTF_Font *font);
+void menu_font_restore(TTF_Font *font);
+
+
 #endif /* UI_H */

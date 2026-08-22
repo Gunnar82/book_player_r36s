@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define ROW_H 30
+#define ROW_H (menu_line_height())
 #define TOP_Y 72
 #define BOTTOM_Y 380
 #define MAX_ROWS ((BOTTOM_Y-TOP_Y)/ROW_H)
@@ -212,10 +212,11 @@ void downloadbrowser_handle_event(ScreenContext *c,const SDL_Event *e){
 }
 
 void downloadbrowser_render(ScreenContext *c){
+    menu_font_apply(c->font);
     if(!loaded&&!loading)load_current();
     draw_text(c->renderer,c->font,"Downloads",20,20,c->selected);
     char pathline[2200];if(relative_path[0])snprintf(pathline,sizeof(pathline),"/%s",relative_path);else snprintf(pathline,sizeof(pathline),"/");draw_text(c->renderer,c->font,pathline,20,48,c->gray);
-    if(entry_count==0){if(status[0])draw_text(c->renderer,c->font,status,20,100,c->gray);else draw_text(c->renderer,c->font,"Kein Listing verfuegbar",20,100,c->gray);draw_text(c->renderer,c->font,relative_path[0]?"B: Hoeher":"B: Hauptbildschirm",20,SCREEN_H-25,c->gray);return;}
+    if(entry_count==0){if(status[0])draw_text(c->renderer,c->font,status,20,100,c->gray);else draw_text(c->renderer,c->font,"Kein Listing verfuegbar",20,100,c->gray);draw_text(c->renderer,c->font,relative_path[0]?"B: Hoeher":"B: Hauptbildschirm",20,SCREEN_H-25,c->gray);menu_font_restore(c->font);return;}
     int end=scroll_offset+MAX_ROWS;if(end>entry_count)end=entry_count;int y=TOP_Y;
     for(int i=scroll_offset;i<end;i++,y+=ROW_H){
         SDL_Color col=i==selection?c->selected:c->white;
@@ -228,4 +229,5 @@ void downloadbrowser_render(ScreenContext *c){
     char sel[96];snprintf(sel,sizeof(sel),"%d ausgewaehlt",selected_count);draw_text(c->renderer,c->font,sel,20,392,c->selected);
     if(status[0])draw_text(c->renderer,c->font,status,170,392,finished_download?c->selected:c->gray);
     draw_text(c->renderer,c->font,relative_path[0]?"Rechts/A: Oeffnen  Links/B: Hoeher  Y: Markieren  X: Auswahl laden":"Rechts/A: Oeffnen  Links/B: Player  Y: Markieren  X: Auswahl laden",20,SCREEN_H-25,c->gray);
+    menu_font_restore(c->font);
 }

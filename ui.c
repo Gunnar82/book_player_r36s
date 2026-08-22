@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "ui.h"
+#include "state.h"
 
 void draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
                 int x, int y, SDL_Color color)
@@ -49,4 +50,36 @@ void format_time(double seconds, char *out, size_t size)
         snprintf(out, size, "%d:%02d:%02d", h, m, s);
     else
         snprintf(out, size, "%02d:%02d", m, s);
+}
+
+int menu_font_pixels(void)
+{
+    static const int sizes[] = {18, 20, 26, 32};
+    int i = menu_font_size;
+    if (i < 0) i = 0;
+    if (i > 3) i = 3;
+    return sizes[i];
+}
+
+int menu_line_height(void)
+{
+    return menu_font_pixels() + 8;
+}
+
+void menu_font_apply(TTF_Font *font)
+{
+#if SDL_TTF_VERSION_ATLEAST(2,0,18)
+    if (font) TTF_SetFontSize(font, menu_font_pixels());
+#else
+    (void)font;
+#endif
+}
+
+void menu_font_restore(TTF_Font *font)
+{
+#if SDL_TTF_VERSION_ATLEAST(2,0,18)
+    if (font) TTF_SetFontSize(font, 20);
+#else
+    (void)font;
+#endif
 }

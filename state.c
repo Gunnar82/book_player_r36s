@@ -16,6 +16,7 @@ int progress_count = 0;
 int volume = MIX_MAX_VOLUME;
 int idle_timer_minutes = 0;
 int display_timeout_seconds = 60;
+int menu_font_size = 1;
 unsigned long long usage_app_starts = 0;
 unsigned long long usage_runtime_seconds = 0;
 unsigned long long usage_playback_seconds = 0;
@@ -49,7 +50,8 @@ void load_state(void)
             int saved_volume = volume;
             int saved_idle = idle_timer_minutes;
             int saved_display_timeout = display_timeout_seconds;
-            int fields = sscanf(line + 10, "%d\t%d\t%d", &saved_volume, &saved_idle, &saved_display_timeout);
+            int saved_menu_font_size = menu_font_size;
+            int fields = sscanf(line + 10, "%d\t%d\t%d\t%d", &saved_volume, &saved_idle, &saved_display_timeout, &saved_menu_font_size);
             if (fields >= 1) {
                 volume = saved_volume;
                 if (volume < 0) volume = 0;
@@ -64,6 +66,11 @@ void load_state(void)
                 display_timeout_seconds = saved_display_timeout;
                 if (display_timeout_seconds < 0) display_timeout_seconds = 0;
                 if (display_timeout_seconds > 3600) display_timeout_seconds = 3600;
+            }
+            if (fields >= 4) {
+                menu_font_size = saved_menu_font_size;
+                if (menu_font_size < 0) menu_font_size = 0;
+                if (menu_font_size > 3) menu_font_size = 3;
             }
             continue;
         }
@@ -89,7 +96,7 @@ void save_state(void)
 {
     FILE *fp = fopen(progress_file, "w");
     if (!fp) return;
-    fprintf(fp, "@settings\t%d\t%d\t%d\n", volume, idle_timer_minutes, display_timeout_seconds);
+    fprintf(fp, "@settings\t%d\t%d\t%d\t%d\n", volume, idle_timer_minutes, display_timeout_seconds, menu_font_size);
     fprintf(fp, "@usage\t%llu\t%llu\t%llu\n", usage_app_starts, usage_runtime_seconds, usage_playback_seconds);
     for (int i = 0; i < progress_count; i++) {
         fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\t%u\n", progress[i].path, progress[i].track,

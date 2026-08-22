@@ -38,16 +38,18 @@ void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
 
 void tracks_render(ScreenContext *c)
 {
+    menu_font_apply(c->font);
     char book_label[320];
     unsigned int dial_id=ensure_book_dial_id(c->book_paths[*c->book_index]);
     if(bluetooth_adapter_present() && dial_id>=1001)snprintf(book_label,sizeof(book_label),"%s [%u]",c->book_names[*c->book_index],dial_id);
     else snprintf(book_label,sizeof(book_label),"%s",c->book_names[*c->book_index]);
     draw_text(c->renderer,c->font,book_label,20,20,c->selected);
-    const int top=60,bottom=SCREEN_H-60,row=28,visible=(bottom-top)/row;
+    const int top=60,bottom=SCREEN_H-60,row=menu_line_height(),visible=(bottom-top)/row;
     int start=0;if(*c->track_count>visible&&*c->track_index>=visible)start=*c->track_index-visible+1;
     int n=*c->track_count-start;if(n>visible)n=visible;int y=top;
     for(int i=0;i<n;i++){int t=start+i;draw_text(c->renderer,c->font,c->tracks[t].name,40,y,t==*c->track_index?c->selected:c->white);y+=row;}
     if(*c->track_count>visible){int h=bottom-top,thumb=(h*visible)/(*c->track_count);if(thumb<12)thumb=12;int range=*c->track_count-visible,travel=h-thumb,ty=top;if(range>0)ty+=(travel*start)/range;SDL_Rect r={SCREEN_W-8,ty,2,thumb};SDL_SetRenderDrawColor(c->renderer,230,210,70,255);SDL_RenderFillRect(c->renderer,&r);}
     draw_text(c->renderer,c->font,"Rechts/A: Start   Links/B: Zurueck   X: System   Y: Hoerspiele",20,SCREEN_H-55,c->gray);
     draw_text(c->renderer,c->font,"L1: Seite hoch  L2: Anfang  R1: Seite runter  R2: Ende",20,SCREEN_H-35,c->gray);
+    menu_font_restore(c->font);
 }

@@ -1,0 +1,181 @@
+FROM --platform=linux/arm64 debian:bookworm AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libsdl2-dev \
+    libsdl2-mixer-dev \
+    libsdl2-ttf-dev \
+    libcurl4-openssl-dev \
+    libsystemd-dev \
+    ca-certificates \
+    pkg-config \
+    binutils \
+    libc-bin \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+COPY *.c *.h ./
+COPY screens ./screens
+
+RUN grep 'APP_VERSION "0.2.35-input-config"' config.h && \
+    grep -q 'extern char download_base_url' storage.h && \
+    grep -q 'extern int display_timeout_seconds' state.h && \
+    grep -q 'extern int menu_font_size' state.h && \
+    grep -q 'mpris_bridge_init' mpris_bridge.h && \
+    grep -q 'media_feedback_show' media_feedback.h && \
+    grep -q 'media_capable' media_keys.h && \
+    grep -q 'SCREEN_DOWNLOADS' screens.h && \
+    grep -q 'input_config_load' input_config.h && \
+    grep -q 'input_normalize_event' input_config.h && \
+    test -f input_config.c && \
+    test -f input_config.h && \
+    test -f download.c && \
+    test -f mpris_bridge.c && \
+    test -f bluetooth.c && \
+    test -f hfp_gateway.c && \
+    test -f pbap_phonebook.c && \
+    test -f battery_bluez.c && \
+    grep -q 'org.bluez.Device1' bluetooth.c && \
+    test -f screens/bluetooth.c && \
+    test -f screens/downloadsettings.c && \
+    test -f media_feedback.c && \
+    test -f app_log.c && \
+    test -f screens/downloadbrowser.c && \
+    test -f screens/logview.c
+
+RUN gcc -O2 -o hoerspiel_player \
+    main.c \
+    state.c \
+    backlight.c \
+    battery.c \
+    battery_bluez.c \
+    led.c \
+    scanner.c \
+    audio.c \
+    ui.c \
+    storage.c \
+    systemstats.c \
+    media_keys.c \
+    media_feedback.c \
+    app_log.c \
+    mpris_bridge.c \
+    bluetooth.c \
+    hfp_gateway.c \
+    pbap_phonebook.c \
+    download.c \
+    input_config.c \
+    screens/menu.c \
+    screens/tracks.c \
+    screens/player.c \
+    screens/systemmenu.c \
+    screens/systeminfo.c \
+    screens/buttondebug.c \
+    screens/downloadbrowser.c \
+    screens/logview.c \
+    screens/bluetooth.c \
+    screens/downloadsettings.c \
+    $(pkg-config --cflags --libs \
+        sdl2 \
+        SDL2_mixer \
+        SDL2_ttf \
+        libcurl \
+        libsystemd)
+
+RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
+
+#
+# Portable Recalbox-/Batocera-Paket erzeugen
+#
+RUN mkdir -p /dist/lib
+
+RUN cp /build/hoerspiel_player /dist/hoerspiel_player
+
+#
+# Alle dynamischen Abhängigkeiten einsammeln
+#
+RUN ldd /build/hoerspiel_player | \
+    awk ' \
+        /=> \// { print $3 } \
+        /^\//   { print $1 } \
+    ' | \
+    sort -u > /tmp/libs.txt && \
+    while read lib; do \
+        cp -L "$lib" /dist/lib/; \
+    done < /tmp/libs.txt
+
+#
+# ARM64 ELF Loader ebenfalls mitnehmen
+#
+RUN cp -L /lib/ld-linux-aarch64.so.1 /dist/lib/ld-linux-aarch64.so.1
+
+#
+# Beispiel-Konfiguration für den GPM2804/Batocera-Controller beilegen.
+# Die R36S-Standardwerte bleiben im Player der Fallback.
+#
+RUN cat > /dist/config.gpm2804.ini <<'EOF'
+[input]
+profile=custom
+dpad_mode=axis
+dpad_x_axis=0
+dpad_y_axis=1
+dpad_deadzone=16000
+
+a=2
+b=1
+x=3
+y=0
+
+l1=4
+r1=-1
+l2=-1
+r2=-1
+
+start=9
+select=8
+EOF
+
+#
+# Kontrolle
+#
+RUN echo "=== Binary ===" && \
+    readelf -h /dist/hoerspiel_player | grep -E 'Class:|Machine:' && \
+    echo "=== Libraries ===" && \
+    ls -lah /dist/lib && \
+    echo "=== Runtime dependencies ===" && \
+    ldd /dist/hoerspiel_player
+
+#
+# Starter für Recalbox.
+#
+# SHARE ist bei deinem Gerät exFAT und nicht ausführbar.
+# Deshalb wird das komplette Runtime-Paket nach /tmp kopiert.
+#
+RUN cat > /dist/hoerspiel.sh <<'EOF'
+#!/bin/sh
+
+SOURCE="/recalbox/share/roms/ports/Hoerspiel Player"
+RUNTIME="/tmp/hoerspiel-player"
+
+rm -rf "$RUNTIME"
+mkdir -p "$RUNTIME/lib"
+
+cp "$SOURCE/hoerspiel_player" "$RUNTIME/hoerspiel_player"
+cp "$SOURCE/lib/"* "$RUNTIME/lib/"
+
+chmod +x "$RUNTIME/hoerspiel_player"
+chmod +x "$RUNTIME/lib/ld-linux-aarch64.so.1"
+
+cd "$SOURCE"
+
+exec "$RUNTIME/lib/ld-linux-aarch64.so.1" \
+    --library-path "$RUNTIME/lib" \
+    "$RUNTIME/hoerspiel_player"
+EOF
+
+#
+# Ausgabe-Stage
+#
+FROM scratch AS export
+
+COPY --from=build /dist /

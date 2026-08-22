@@ -66,6 +66,7 @@ void systemmenu_handle_event(ScreenContext *c, const SDL_Event *e)
 
 void systemmenu_render(ScreenContext *c)
 {
+    menu_font_apply(c->font);
     draw_text(c->renderer, c->font, "Systemmenue", 20, 20, c->selected);
 
     int y = 90;
@@ -76,10 +77,11 @@ void systemmenu_render(ScreenContext *c)
         if (disabled) snprintf(label,sizeof(label),"%s  [deaktiviert]",items[i]);
         else snprintf(label,sizeof(label),"%s",items[i]);
         draw_text(c->renderer, c->font, label, 45, y, col);
-        y += 42;
+        y += menu_line_height()+10;
     }
 
     draw_text(c->renderer, c->font,
               "Rechts/A: Auswaehlen   Links/B: Player   Y: Hoerspiele",
               20, SCREEN_H - 35, c->gray);
+    menu_font_restore(c->font);
 }

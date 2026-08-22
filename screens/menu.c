@@ -12,7 +12,7 @@
 #define MAX_BROWSER_ENTRIES 512
 #define MENU_TOP_Y 20
 #define MENU_BOTTOM_Y (SCREEN_H - 82)
-#define MENU_ROW_H 28
+#define MENU_ROW_H (menu_line_height())
 
 typedef enum {
     BROWSER_HEADING = 0,
@@ -357,6 +357,7 @@ static void draw_book_progress(ScreenContext *c, const BrowserEntry *e,
 
 void menu_render(ScreenContext *c)
 {
+    menu_font_apply(c->font);
     rebuild(c);
     keep_selection_visible();
 
@@ -417,4 +418,5 @@ void menu_render(ScreenContext *c)
     draw_text(c->renderer,c->font,
               "L1: Seite hoch  L2: Anfang  R1: Seite runter  R2: Ende",
               20,SCREEN_H-35,c->gray);
+    menu_font_restore(c->font);
 }

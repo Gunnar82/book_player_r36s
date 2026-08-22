@@ -2,6 +2,7 @@
 #define MEDIA_KEYS_H
 
 #include <stdint.h>
+#include "input_config.h"
 
 #define MEDIA_KEYS_MAX_DEVICES 32
 
