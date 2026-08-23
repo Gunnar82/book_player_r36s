@@ -8,6 +8,14 @@
 static StreamEntry *entries=NULL;
 static int count=0,selection=0,loaded=0,loading=0,favorites_only=0;
 static char status[256]="";
+static char last_selected_uuid[128]="";
+static int total_favorites(void){
+    int n=0;
+    for(int i=0;i<count;i++)
+        if(streaming_favorite_is_set(entries[i].uuid))n++;
+    return n;
+}
+
 
 static int visible_count(void){
     if(!favorites_only)return count;
@@ -18,6 +26,39 @@ static int actual_index(int vi){
     if(!favorites_only)return vi;
     int n=0;for(int i=0;i<count;i++)if(streaming_favorite_is_set(entries[i].uuid)){if(n==vi)return i;n++;}
     return -1;
+}
+
+static void clamp_selection(void);
+
+static int visible_index_for_uuid(const char *uuid){
+    if(!uuid||!uuid[0])return -1;
+    if(!favorites_only){
+        for(int i=0;i<count;i++)
+            if(!strcmp(entries[i].uuid,uuid))return i;
+        return -1;
+    }
+    int vi=0;
+    for(int i=0;i<count;i++){
+        if(!streaming_favorite_is_set(entries[i].uuid))continue;
+        if(!strcmp(entries[i].uuid,uuid))return vi;
+        vi++;
+    }
+    return -1;
+}
+
+static void remember_current_selection(void){
+    int n=visible_count();
+    if(n<=0)return;
+    int ai=actual_index(selection);
+    if(ai<0||ai>=count)return;
+    if(entries[ai].uuid[0])
+        snprintf(last_selected_uuid,sizeof(last_selected_uuid),"%s",entries[ai].uuid);
+}
+
+static void restore_selection_from_uuid(void){
+    int vi=visible_index_for_uuid(last_selected_uuid);
+    if(vi>=0)selection=vi;
+    else clamp_selection();
 }
 static void clamp_selection(void){
     int n=visible_count(); if(n<=0)selection=0; else if(selection>=n)selection=n-1; if(selection<0)selection=0;
@@ -34,16 +75,27 @@ static void load_streams(void){
         entries=NULL;
         count=0;
     }
+    if(total_favorites()>0)favorites_only=1;
+    else favorites_only=0;
+    selection=0;
+    if(last_selected_uuid[0])restore_selection_from_uuid();
+    else clamp_selection();
     loaded=1;
     loading=0;
-    clamp_selection();
 }
 void streams_handle_event(ScreenContext *c,const SDL_Event *e){
     if(!loaded&&!loading)load_streams();
     if(e->type!=SDL_JOYBUTTONDOWN)return;
     int b=e->jbutton.button,n=visible_count();
     if(b==BUTTON_B||b==BUTTON_DPAD_LEFT){*c->screen=SCREEN_SYSTEM_MENU;return;}
-    if(b==BUTTON_X){favorites_only=!favorites_only;selection=0;status[0]='\0';return;}
+    if(b==BUTTON_X){
+        remember_current_selection();
+        favorites_only=!favorites_only;
+        selection=0;
+        restore_selection_from_uuid();
+        status[0]='\0';
+        return;
+    }
     if(b==BUTTON_Y&&n>0){
         int ai=actual_index(selection);
         if(ai>=0&&entries[ai].uuid[0]){
@@ -78,6 +130,8 @@ void streams_handle_event(ScreenContext *c,const SDL_Event *e){
 
     if((b==BUTTON_A||b==BUTTON_DPAD_RIGHT)&&n){
         int ai=actual_index(selection);if(ai<0)return;
+        if(entries[ai].uuid[0])
+            snprintf(last_selected_uuid,sizeof(last_selected_uuid),"%s",entries[ai].uuid);
         char err[256]="";
         if(streaming_start(&entries[ai],err,sizeof(err))==0){streaming_set_volume((volume*100)/128);*c->screen=SCREEN_PLAYER;}
         else snprintf(status,sizeof(status),"%s",err);
@@ -86,8 +140,9 @@ void streams_handle_event(ScreenContext *c,const SDL_Event *e){
 void streams_render(ScreenContext *c){
     if(!loaded&&!loading)load_streams();
     menu_font_apply(c->font);
-    char heading[128];snprintf(heading,sizeof(heading),"Streams - %s",favorites_only?"Favoriten":"Alle");
+    char heading[192];snprintf(heading,sizeof(heading),"Streams - %s  [%s]",favorites_only?"Favoriten":"Alle",streaming_backend_name());
     draw_text(c->renderer,c->font,heading,20,20,c->selected);
+    if(!streaming_backend_available())draw_text(c->renderer,c->font,"Kein Streaming-Backend verfuegbar",20,48,c->gray);
 
     int n=visible_count();
     if(!n){
