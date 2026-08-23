@@ -39,8 +39,15 @@ int streaming_favorite_toggle(const char *uuid);
 int streaming_start(const StreamEntry *entry,char *err,size_t err_size);
 void streaming_stop(void);
 int streaming_is_active(void);
+int streaming_is_paused(void);
 int streaming_toggle_pause(void);
 int streaming_set_volume(int percent);
 int streaming_get_metadata(char *station,size_t station_size,char *title,size_t title_size,char *extra,size_t extra_size);
+int streaming_get_description(char *description,size_t description_size);
 const char *streaming_current_name(void);
+const char *streaming_current_url(void);
+const char *streaming_backend_name(void);
+int streaming_backend_available(void);
+int streaming_session_active(void);
+void streaming_session_clear(void);
 #endif
