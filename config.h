@@ -1,7 +1,18 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 #define APP_NAME "Hoerspiel Player"
-#define APP_VERSION "0.3"
+
+/* Plattformabhaengiger Fontpfad.
+   Der Build setzt fuer Batocera BUILD_BATOCERA, fuer R36S BUILD_R36S. */
+#if defined(BUILD_BATOCERA)
+#define DEFAULT_FONT_PATH "/usr/share/fonts/dejavu/DejaVuSans.ttf"
+#elif defined(BUILD_R36S)
+#define DEFAULT_FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+#else
+#define DEFAULT_FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+#endif
+
+#define APP_VERSION "0.3.1"
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define MAX_BOOKS 200
