@@ -28,7 +28,7 @@ static Uint32 repeat_started=0;
 static Uint32 repeat_next=0;
 
 static void repeat_press(int button,Uint32 now){
-    if(button!=BUTTON_DPAD_UP&&button!=BUTTON_DPAD_DOWN)return;
+    if(button!=BUTTON_DPAD_UP&&button!=BUTTON_DPAD_DOWN&&button!=BUTTON_L1&&button!=BUTTON_R1)return;
     if(repeat_button!=button){
         repeat_button=button;
         repeat_started=now;
