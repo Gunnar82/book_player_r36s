@@ -1,18 +1,19 @@
 #!/bin/bash
 
 APPDIR="/userdata/roms/ports/Hoerspiel Player"
+RUNTIME_LIBDIR="/tmp/hoerspiel-libs"
 
-# Debian/R36S-kompatiblen Fontpfad auf Batocera bereitstellen
-mkdir -p /usr/share/fonts/truetype/dejavu
-ln -sf /usr/share/fonts/dejavu/DejaVuSans.ttf \
-  /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+mkdir -p "$RUNTIME_LIBDIR"
 
-# Fehlende libsystemd fuer den Player bereitstellen
-mkdir -p /tmp/hoerspiel-libs
-cp "$APPDIR/lib/libsystemd.so.0" /tmp/hoerspiel-libs/
+# Nur die auf Batocera fehlenden Bibliotheken gezielt bereitstellen.
+for lib in libsystemd.so.0 libqrencode.so.4; do
+  if [ -f "$APPDIR/lib/$lib" ]; then
+    cp -L "$APPDIR/lib/$lib" "$RUNTIME_LIBDIR/$lib"
+  fi
+done
 
-cd "$APPDIR"
+cd "$APPDIR" || exit 1
 
-export LD_LIBRARY_PATH="/tmp/hoerspiel-libs"
+export LD_LIBRARY_PATH="$RUNTIME_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 exec "$APPDIR/hoerspiel_player"
