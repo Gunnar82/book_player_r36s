@@ -80,7 +80,8 @@ int main(int argc,char **argv)
  if(resume_book>=0&&resume_progress>=0){track_count=scan_tracks(book_paths[resume_book],tracks);book_duration=get_track_durations(tracks,track_count,track_durations);if(track_count>0){book_index=resume_book;track_index=progress[resume_progress].track;if(track_index<0||track_index>=track_count)track_index=0;base_position=progress[resume_progress].position;started_ticks=SDL_GetTicks();paused=1;last_save=SDL_GetTicks();}}
  int sleep_timer_active=0,sleep_timer_minutes=SLEEP_DEFAULT_MINUTES;Uint32 sleep_timer_end_ticks=0;int shutdown_tracks_remaining=shutdown_after_tracks,shutdown_tracks_setting_seen=shutdown_after_tracks;int locked=0,unlock_sequence[UNLOCK_SEQUENCE_LEN],unlock_progress=0;Uint32 unlock_wrong_flash_until=0,lock_screen_visible_until=0;MediaKeys media_keys;media_keys_init(&media_keys);MprisBridge mpris;memset(&mpris,0,sizeof(mpris));if(bluetooth_present)mpris_bridge_init(&mpris);HfpGateway *hfp_gateway=NULL;if(bluetooth_present&&hfp_gateway_init(&hfp_gateway)<0)app_logf("HFP IPC konnte nicht gestartet werden");Uint32 last_bluetooth_check=SDL_GetTicks(),usage_last_tick=SDL_GetTicks();
 
- while(running){
+ Uint32 frame_last_present=0;
+while(running){
   if(SDL_GetTicks()-last_bluetooth_check>=2000){
    int now_present=bluetooth_adapter_present();
    if(now_present!=bluetooth_present){
@@ -106,7 +107,11 @@ int main(int argc,char **argv)
   int repeat_enabled=(screen==SCREEN_MENU||screen==SCREEN_TRACKS||screen==SCREEN_SYSTEM_INFO||
                       screen==SCREEN_SYSTEM_MENU||screen==SCREEN_DOWNLOADS||screen==SCREEN_STREAMS||
                       screen==SCREEN_LOG||screen==SCREEN_BLUETOOTH||screen==SCREEN_DOWNLOAD_SETTINGS);
-  if(input_repeat_event(&repeat_e,SDL_GetTicks(),repeat_enabled))SDL_PushEvent(&repeat_e);
+  if(input_repeat_event(&repeat_e,SDL_GetTicks(),repeat_enabled)){
+   if((repeat_e.jbutton.button==BUTTON_L1||repeat_e.jbutton.button==BUTTON_R1) && screen!=SCREEN_STREAMS){
+    /* L1/R1-Haltewiederholung nur in der Streams-Liste. */
+   }else SDL_PushEvent(&repeat_e);
+  }
 
   SDL_Event e;
   while(SDL_PollEvent(&e)){
@@ -118,7 +123,11 @@ int main(int argc,char **argv)
    if(e.type==SDL_JOYBUTTONDOWN&&e.jbutton.button==BUTTON_SELECT&&!locked){locked=1;generate_unlock_sequence(unlock_sequence,UNLOCK_SEQUENCE_LEN);unlock_progress=0;lock_screen_visible_until=0;screen=SCREEN_PLAYER;continue;}
    if(locked){if(e.type==SDL_JOYBUTTONDOWN){Uint32 lock_now=SDL_GetTicks();lock_screen_visible_until=lock_now+5000U;if(e.jbutton.button==unlock_sequence[unlock_progress]){unlock_progress++;if(unlock_progress>=UNLOCK_SEQUENCE_LEN){locked=0;unlock_progress=0;lock_screen_visible_until=0;}}else{unlock_progress=0;unlock_wrong_flash_until=lock_now+400;}}continue;}
    if(e.type==SDL_KEYDOWN){if(e.key.keysym.scancode==(SDL_Scancode)KEY_VOLUME_UP){volume+=VOLUME_STEP;if(volume>MIX_MAX_VOLUME)volume=MIX_MAX_VOLUME;Mix_VolumeMusic(volume);save_state();continue;}if(e.key.keysym.scancode==(SDL_Scancode)KEY_VOLUME_DOWN){volume-=VOLUME_STEP;if(volume<0)volume=0;Mix_VolumeMusic(volume);save_state();continue;}}
-   if(e.type==SDL_JOYBUTTONDOWN){if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_X){screen=SCREEN_SYSTEM_MENU;continue;}if(e.jbutton.button==BUTTON_START){if(!music&&track_count>0){music=play_track(tracks,track_index,base_position,&base_position,&started_ticks,&paused);if(music){duration=get_duration(music);last_save=SDL_GetTicks();}}else if(music){if(paused){Mix_ResumeMusic();started_ticks=SDL_GetTicks();paused=0;}else if(Mix_PlayingMusic()){base_position=get_position(base_position,started_ticks,0);Mix_PauseMusic();paused=1;}}continue;}if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_Y){screen=(screen==SCREEN_PLAYER)?SCREEN_MENU:SCREEN_PLAYER;continue;}}
+   if(e.type==SDL_JOYBUTTONDOWN){
+    if(screen==SCREEN_PLAYER&&streaming_is_active()){
+        /* Stream-Tasten werden ausschliesslich in player_handle_event behandelt. */
+    }else{
+if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_X){screen=SCREEN_SYSTEM_MENU;continue;}if(e.jbutton.button==BUTTON_START){if(!music&&track_count>0){music=play_track(tracks,track_index,base_position,&base_position,&started_ticks,&paused);if(music){duration=get_duration(music);last_save=SDL_GetTicks();}}else if(music){if(paused){Mix_ResumeMusic();started_ticks=SDL_GetTicks();paused=0;}else if(Mix_PlayingMusic()){base_position=get_position(base_position,started_ticks,0);Mix_PauseMusic();paused=1;}}continue;}if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_Y){screen=(screen==SCREEN_PLAYER)?SCREEN_MENU:SCREEN_PLAYER;continue;}}}
    ScreenContext screen_ctx={renderer,font,white,selected,gray,&screen,&running,&book_index,&track_index,&book_count,&track_count,book_names,book_paths,tracks,&music,&base_position,&started_ticks,&duration,track_durations,&book_duration,&paused,&last_save,&axis_y_lock,&axis_x_lock,&sleep_timer_active,&sleep_timer_minutes,&sleep_timer_end_ticks,storage_paths,&storage_path_count,book_roots,book_track_counts,&cpu_usage,&ram_usage,&cpu_temperature,&battery_percent,&battery_charging,&idle_timer_remaining_ms,do_shutdown};
    switch(screen){case SCREEN_MENU:menu_handle_event(&screen_ctx,&e);break;case SCREEN_TRACKS:tracks_handle_event(&screen_ctx,&e);break;case SCREEN_PLAYER:player_handle_event(&screen_ctx,&e);break;case SCREEN_SLEEP_TIMER:sleeptimer_handle_event(&screen_ctx,&e);break;case SCREEN_SYSTEM_INFO:systeminfo_handle_event(&screen_ctx,&e);break;case SCREEN_BUTTON_DEBUG:buttondebug_handle_event(&screen_ctx,&e);break;case SCREEN_SYSTEM_MENU:systemmenu_handle_event(&screen_ctx,&e);break;case SCREEN_DOWNLOADS:downloadbrowser_handle_event(&screen_ctx,&e);idle_timer_last_tick=SDL_GetTicks();break;case SCREEN_STREAMS:streams_handle_event(&screen_ctx,&e);break;case SCREEN_LOG:logview_handle_event(&screen_ctx,&e);break;case SCREEN_BLUETOOTH:bluetoothscreen_handle_event(&screen_ctx,&e);break;case SCREEN_DOWNLOAD_SETTINGS:downloadsettings_handle_event(&screen_ctx,&e);break;}
   }
@@ -154,7 +163,7 @@ int main(int argc,char **argv)
   {Uint32 usage_now=SDL_GetTicks();Uint32 usage_elapsed=usage_now-usage_last_tick;if(usage_elapsed>=1000U){unsigned long long sec=usage_elapsed/1000U;usage_runtime_seconds+=sec;if(music&&!paused&&Mix_PlayingMusic())usage_playback_seconds+=sec;usage_last_tick+=(Uint32)(sec*1000ULL);}}
   if(locked&&lock_screen_visible_until&&SDL_GetTicks()>=lock_screen_visible_until){lock_screen_visible_until=0;unlock_progress=0;}
   if(idle_timer_minutes!=idle_setting_seen){idle_setting_seen=idle_timer_minutes;idle_timer_remaining_ms=idle_timer_minutes>0?(Uint32)idle_timer_minutes*60000U:0U;idle_timer_last_tick=SDL_GetTicks();}
-  {Uint32 now=SDL_GetTicks();if(idle_timer_minutes<=0){idle_timer_remaining_ms=0;idle_timer_last_tick=now;}else if(music&&!paused&&Mix_PlayingMusic())idle_timer_last_tick=now;else{Uint32 elapsed=now-idle_timer_last_tick;idle_timer_last_tick=now;if(elapsed>=idle_timer_remaining_ms){idle_timer_remaining_ms=0;do_shutdown(&music);running=0;}else idle_timer_remaining_ms-=elapsed;}}
+  {Uint32 now=SDL_GetTicks();if(idle_timer_minutes<=0){idle_timer_remaining_ms=0;idle_timer_last_tick=now;}else if((music&&!paused&&Mix_PlayingMusic())||(streaming_is_active()&&!streaming_is_paused()))idle_timer_last_tick=now;else{Uint32 elapsed=now-idle_timer_last_tick;idle_timer_last_tick=now;if(elapsed>=idle_timer_remaining_ms){idle_timer_remaining_ms=0;do_shutdown(&music);running=0;}else idle_timer_remaining_ms-=elapsed;}}
   if(sleep_timer_active&&SDL_GetTicks()>=sleep_timer_end_ticks){do_shutdown(&music);running=0;}
   if(sleep_timer_active){Uint32 now=SDL_GetTicks(),rem=sleep_timer_end_ticks>now?sleep_timer_end_ticks-now:0;if(rem<=LED_BLINK_THRESHOLD_SEC*1000U){int blink_on=((now/(LED_BLINK_PERIOD_MS/2))%2)==0;led_set(blink_on);}else led_set(0);}else led_set(0);
   if(display_timeout_seconds>0&&!is_display_off()&&SDL_GetTicks()-last_activity>=(Uint32)display_timeout_seconds*1000U)set_display_off(1);
@@ -170,7 +179,13 @@ int main(int argc,char **argv)
    SDL_RenderDrawRect(renderer,&lock_shackle);
    SDL_RenderFillRect(renderer,&lock_body);
   }else{switch(screen){case SCREEN_MENU:menu_render(&screen_ctx);break;case SCREEN_TRACKS:tracks_render(&screen_ctx);break;case SCREEN_PLAYER:player_render(&screen_ctx);break;case SCREEN_SLEEP_TIMER:sleeptimer_render(&screen_ctx);break;case SCREEN_SYSTEM_INFO:systeminfo_render(&screen_ctx);break;case SCREEN_BUTTON_DEBUG:buttondebug_render(&screen_ctx);break;case SCREEN_SYSTEM_MENU:systemmenu_render(&screen_ctx);break;case SCREEN_DOWNLOADS:downloadbrowser_render(&screen_ctx);break;case SCREEN_STREAMS:streams_render(&screen_ctx);break;case SCREEN_LOG:logview_render(&screen_ctx);break;case SCREEN_BLUETOOTH:bluetoothscreen_render(&screen_ctx);break;case SCREEN_DOWNLOAD_SETTINGS:downloadsettings_render(&screen_ctx);break;}}
-  SDL_RenderPresent(renderer);SDL_Delay(10);
+  SDL_RenderPresent(renderer);
+  {
+   Uint32 now=SDL_GetTicks();
+   Uint32 elapsed=now-frame_last_present;
+   if(frame_last_present!=0 && elapsed<33U)SDL_Delay(33U-elapsed);
+   frame_last_present=SDL_GetTicks();
+  }SDL_Delay(10);
  }
  save_state();streaming_stop();hfp_gateway_close(hfp_gateway);battery_bluez_close(battery_bluez);mpris_bridge_close(&mpris);media_keys_close(&media_keys);if(music){Mix_HaltMusic();Mix_FreeMusic(music);}if(joy)SDL_JoystickClose(joy);if(font)TTF_CloseFont(font);SDL_DestroyRenderer(renderer);SDL_DestroyWindow(window);Mix_CloseAudio();TTF_Quit();SDL_Quit();return 0;
 }
