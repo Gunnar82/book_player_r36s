@@ -2,6 +2,7 @@ FROM debian:bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    make \
     libsdl2-dev \
     libsdl2-mixer-dev \
     libsdl2-ttf-dev \
@@ -17,9 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 
 COPY *.c *.h ./
+COPY Makefile.gpm2804 ./Makefile
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3.4"' config.h && \
+RUN grep 'APP_VERSION "0.3.14"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && \
@@ -40,71 +42,26 @@ RUN grep 'APP_VERSION "0.3.4"' config.h && \
     grep -q 'org.bluez.Device1' bluetooth.c && \
     test -f screens/bluetooth.c && \
     test -f screens/downloadsettings.c && \
+    test -f screens/streamsettings.c && \
     test -f media_feedback.c && \
     test -f app_log.c && \
     test -f screens/downloadbrowser.c && \
     test -f screens/logview.c
 
-RUN gcc -O2 -DBUILD_BATOCERA -o hoerspiel_player \
-    main.c \
-    state.c \
-    backlight.c \
-    battery.c \
-    battery_bluez.c \
-    led.c \
-    scanner.c \
-    audio.c \
-    ui.c \
-    storage.c \
-    systemstats.c \
-    media_keys.c \
-    media_feedback.c \
-    app_log.c \
-    mpris_bridge.c \
-    bluetooth.c \
-    hfp_gateway.c \
-    pbap_phonebook.c \
-    download.c \
-    input_config.c \
-    streaming.c \
-    qr_render.c \
-    screens/menu.c \
-    screens/tracks.c \
-    screens/player.c \
-    screens/systemmenu.c \
-    screens/systeminfo.c \
-    screens/buttondebug.c \
-    screens/downloadbrowser.c \
-    screens/streams.c \
-    screens/logview.c \
-    screens/bluetooth.c \
-    screens/downloadsettings.c \
-    $(pkg-config --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode) \
-    $(pkg-config --libs \
-        sdl2 \
-        SDL2_mixer \
-        SDL2_ttf \
-        libcurl \
-        libsystemd \
-        libqrencode)
+RUN make clean && make
 
 RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
 
+#
+# Portables Batocera-Paket erzeugen
+#
 RUN mkdir -p /dist/lib
 RUN cp /build/hoerspiel_player /dist/hoerspiel_player
-
 RUN ldd /build/hoerspiel_player | \
-    awk ' \
-        /=> \// { print $3 } \
-        /^\//   { print $1 } \
-    ' | \
+    awk ' /=> \// { print $3 } /^\// { print $1 } ' | \
     sort -u > /tmp/libs.txt && \
-    while read lib; do \
-        cp -L "$lib" /dist/lib/; \
-    done < /tmp/libs.txt
-
+    while read lib; do cp -L "$lib" /dist/lib/; done < /tmp/libs.txt
 RUN cp -L /lib/ld-linux-aarch64.so.1 /dist/lib/ld-linux-aarch64.so.1
-
 RUN cat > /dist/config.gpm2804.ini <<'EOF'
 [input]
 profile=custom
@@ -126,36 +83,24 @@ r2=-1
 start=9
 select=8
 EOF
-
 RUN echo "=== Binary ===" && \
     readelf -h /dist/hoerspiel_player | grep -E 'Class:|Machine:' && \
-    echo "=== Libraries ===" && \
-    ls -lah /dist/lib && \
-    echo "=== Runtime dependencies ===" && \
-    ldd /dist/hoerspiel_player
-
+    echo "=== Libraries ===" && ls -lah /dist/lib && \
+    echo "=== Runtime dependencies ===" && ldd /dist/hoerspiel_player
 RUN cat > /dist/hoerspiel.sh <<'EOF'
 #!/bin/bash
 
 APPDIR="/userdata/roms/ports/Hoerspiel Player"
 RUNTIME_LIBDIR="/tmp/hoerspiel-libs"
-
 mkdir -p "$RUNTIME_LIBDIR"
-
-# Nur die auf Batocera fehlenden Bibliotheken gezielt bereitstellen.
 for lib in libsystemd.so.0 libqrencode.so.4; do
   if [ -f "$APPDIR/lib/$lib" ]; then
     cp -L "$APPDIR/lib/$lib" "$RUNTIME_LIBDIR/$lib"
   fi
 done
-
 cd "$APPDIR" || exit 1
-
 export LD_LIBRARY_PATH="$RUNTIME_LIBDIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-
 exec "$APPDIR/hoerspiel_player"
 EOF
-
 FROM scratch AS export
-
 COPY --from=build /dist /

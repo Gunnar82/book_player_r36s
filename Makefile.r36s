@@ -1,0 +1,59 @@
+CC := gcc
+PKG_CONFIG := pkg-config
+
+CPPFLAGS := -DBUILD_R36S
+CFLAGS := -O2 -Wall -Wextra
+PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
+PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
+LDFLAGS := -Wl,-rpath,'$$ORIGIN/lib'
+
+SOURCES := \
+	main.c \
+	state.c \
+	backlight.c \
+	battery.c \
+	battery_bluez.c \
+	led.c \
+	scanner.c \
+	audio.c \
+	ui.c \
+	storage.c \
+	systemstats.c \
+	media_keys.c \
+	media_feedback.c \
+	app_log.c \
+	input_config.c \
+	streaming.c \
+	qr_render.c \
+	mpris_bridge.c \
+	bluetooth.c \
+	hfp_gateway.c \
+	pbap_phonebook.c \
+	download.c \
+	screens/menu.c \
+	screens/tracks.c \
+	screens/player.c \
+	screens/systemmenu.c \
+	screens/systeminfo.c \
+	screens/buttondebug.c \
+	screens/downloadbrowser.c \
+	screens/streams.c \
+	screens/streamsettings.c \
+	screens/logview.c \
+	screens/bluetooth.c \
+	screens/downloadsettings.c
+
+OBJECTS := $(SOURCES:.c=.o)
+
+.PHONY: all clean
+
+all: hoerspiel_player
+
+hoerspiel_player: $(OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PKG_LIBS)
+
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJECTS) hoerspiel_player
