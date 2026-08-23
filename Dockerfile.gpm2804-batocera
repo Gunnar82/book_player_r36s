@@ -1,4 +1,4 @@
-FROM --platform=linux/arm64 debian:bookworm AS build
+FROM debian:bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsdl2-ttf-dev \
     libcurl4-openssl-dev \
     libsystemd-dev \
+    libqrencode-dev \
     ca-certificates \
     pkg-config \
     binutils \
@@ -18,7 +19,7 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3"' config.h && \
+RUN grep 'APP_VERSION "0.3.1"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && \
@@ -44,7 +45,7 @@ RUN grep 'APP_VERSION "0.3"' config.h && \
     test -f screens/downloadbrowser.c && \
     test -f screens/logview.c
 
-RUN gcc -O2 -o hoerspiel_player \
+RUN gcc -O2 -DBUILD_BATOCERA -o hoerspiel_player \
     main.c \
     state.c \
     backlight.c \
@@ -66,6 +67,7 @@ RUN gcc -O2 -o hoerspiel_player \
     download.c \
     input_config.c \
     streaming.c \
+    qr_render.c \
     screens/menu.c \
     screens/tracks.c \
     screens/player.c \
@@ -77,12 +79,14 @@ RUN gcc -O2 -o hoerspiel_player \
     screens/logview.c \
     screens/bluetooth.c \
     screens/downloadsettings.c \
-    $(pkg-config --cflags --libs \
+    $(pkg-config --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode) \
+    $(pkg-config --libs \
         sdl2 \
         SDL2_mixer \
         SDL2_ttf \
         libcurl \
-        libsystemd)
+        libsystemd \
+        libqrencode)
 
 RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
 
