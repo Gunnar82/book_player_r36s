@@ -28,6 +28,7 @@ typedef struct {
 
 typedef struct {
     FILE *fp;
+    const char *folder;
     const char *name;
     int file_index;
     int file_count;
@@ -71,12 +72,11 @@ static int xfer_info(void *userdata,curl_off_t dltotal,curl_off_t dlnow,curl_off
     (void)ulnow;
     FileProgress *p=(FileProgress*)userdata;
     if(!p->progress)return 0;
-    return p->progress(p->name,p->file_index,p->file_count,
+    return p->progress(p->folder,p->name,p->file_index,p->file_count,
                        (long long)dlnow,(long long)dltotal,
                        p->completed_before+(long long)dlnow,
                        p->total_size,p->userdata)?1:0;
 }
-
 
 static void set_tls_options(CURL *curl)
 {
@@ -288,7 +288,7 @@ int remote_download_files(const char *relative_path,const RemoteEntry *entries,i
 
         if(local_file_matches_remote_size(local,entries[i].size)){
             unlink(part);
-            if(progress&&progress(entries[i].name,file_index,file_count,
+            if(progress&&progress(relative_path?relative_path:"",entries[i].name,file_index,file_count,
                                   entries[i].size,entries[i].size,
                                   completed+entries[i].size,total_size,userdata)){
                 snprintf(error,error_size,"Download abgebrochen");
@@ -307,7 +307,7 @@ int remote_download_files(const char *relative_path,const RemoteEntry *entries,i
 
         FILE *fp=fopen(part,"wb");
         if(!fp){snprintf(error,error_size,"Kann %s nicht schreiben",part);curl_easy_cleanup(curl);return -1;}
-        FileProgress pc={fp,entries[i].name,file_index,file_count,completed,total_size,progress,userdata};
+        FileProgress pc={fp,relative_path?relative_path:"",entries[i].name,file_index,file_count,completed,total_size,progress,userdata};
         curl_easy_reset(curl);
         curl_easy_setopt(curl,CURLOPT_URL,url);
         curl_easy_setopt(curl,CURLOPT_FOLLOWLOCATION,1L);
@@ -379,7 +379,7 @@ static int scan_directory_stats(const char *path,int *files,long long *bytes,cha
     return 0;
 }
 
-static int global_progress_cb(const char *name,int file_index,int file_count,
+static int global_progress_cb(const char *folder,const char *name,int file_index,int file_count,
                               long long file_now,long long file_total,
                               long long total_now,long long total_size,void *userdata)
 {
@@ -387,7 +387,7 @@ static int global_progress_cb(const char *name,int file_index,int file_count,
     (void)total_size;
     SelectionProgress *p=(SelectionProgress*)userdata;
     if(!p->progress)return 0;
-    return p->progress(name,p->file_offset+file_index,p->total_files,
+    return p->progress(folder,name,p->file_offset+file_index,p->total_files,
                        file_now,file_total,p->byte_offset+total_now,p->total_size,p->userdata);
 }
 
