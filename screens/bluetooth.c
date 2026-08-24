@@ -11,8 +11,16 @@ static int selection=0;
 static int message_until=0;
 static char message[128]="";
 
-static void refresh(void){device_count=bluetooth_scan_paired_trusted(devices,BT_MAX_DEVICES);if(selection>device_count)selection=device_count;}
-void bluetoothscreen_reset(void){selection=0;message[0]='\0';message_until=0;refresh();}
+static void refresh(void){
+    if(!bluetooth_adapter_powered()){
+        device_count=0;
+        selection=0;
+        return;
+    }
+    device_count=bluetooth_scan_paired_trusted(devices,BT_MAX_DEVICES);
+    if(selection>device_count)selection=device_count;
+}
+void bluetoothscreen_reset(void){selection=0;message[0]='\0';message_until=0;bluetooth_log_if_changed();refresh();}
 
 static void set_message(const char *text){snprintf(message,sizeof(message),"%s",text?text:"");message_until=(int)SDL_GetTicks()+3000;}
 static void move(int delta){int max=device_count;selection+=delta;if(selection<0)selection=max;if(selection>max)selection=0;}
@@ -47,7 +55,11 @@ void bluetoothscreen_render(ScreenContext *c)
     char buf[256];snprintf(buf,sizeof(buf),"Autoconnect beim Start: < %s >",bluetooth_autoconnect?"Ein":"Aus");
     draw_text(c->renderer,c->font,buf,35,65,selection==0?c->selected:c->white);
     int y=110;
-    if(!bluetooth_adapter_present()){draw_text(c->renderer,c->font,"Kein Bluetooth-Adapter vorhanden",35,y,c->gray);}
+    if(!bluetooth_adapter_present()){
+        draw_text(c->renderer,c->font,"Kein Bluetooth-Adapter vorhanden",35,y,c->gray);
+    }else if(!bluetooth_adapter_powered()){
+        draw_text(c->renderer,c->font,"Bluetooth ist ausgeschaltet",35,y,c->gray);
+    }
     else if(device_count==0){draw_text(c->renderer,c->font,"Keine paired + trusted Geraete gefunden",35,y,c->gray);}
     int first=0;
     if(selection>7)first=selection-7;

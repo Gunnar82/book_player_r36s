@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "bluetooth.h"
 
 #define BLUEZ_SERVICE "org.bluez"
 #define BLUEZ_ADAPTER_PATH "/org/bluez/hci0"
@@ -29,6 +30,7 @@ static int get_percentage(sd_bus *bus,
                           void *userdata,
                           sd_bus_error *ret_error)
 {
+    if(!bluetooth_service_available()) return -1;
     (void)bus;
     (void)path;
     (void)interface;

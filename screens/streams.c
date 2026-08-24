@@ -2,12 +2,15 @@
 #include "../streaming.h"
 #include "../ui.h"
 #include "../state.h"
+#include "../systemstats.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <SDL2/SDL_mixer.h>
 
 static StreamEntry *entries=NULL;
 static int count=0,selection=0,loaded=0,loading=0,favorites_only=0;
+static int return_filter_valid=0;
+static int return_favorites_only=0;
 static char status[256]="";
 static char last_selected_uuid[STREAM_UUID_LEN]="";
 /* Senderidentitaet basiert ausschliesslich auf stationuuid. Anzeigename/URL duerfen sich aendern. */
@@ -69,6 +72,28 @@ static void clamp_selection(void){
 void streams_reset(void){free(entries);entries=NULL;count=0;selection=0;loaded=0;loading=0;favorites_only=0;status[0]='\0';}
 static void load_streams(void){
     loading=1;
+
+    if(!stream_xml_url[0]){
+        free(entries);
+        entries=NULL;
+        count=0;
+        selection=0;
+        snprintf(status,sizeof(status),"Stream-XML nicht konfiguriert");
+        loaded=1;
+        loading=0;
+        return;
+    }
+
+    if(!network_connection_active()){
+        free(entries);
+        entries=NULL;
+        count=0;
+        selection=0;
+        snprintf(status,sizeof(status),"Keine Netzwerkverbindung");
+        loaded=1;
+        loading=0;
+        return;
+    }
     free(entries);
     entries=NULL;
     count=0;
@@ -77,8 +102,14 @@ static void load_streams(void){
         entries=NULL;
         count=0;
     }
-    if(total_favorites()>0)favorites_only=1;
-    else favorites_only=0;
+    if(return_filter_valid){
+        favorites_only=return_favorites_only;
+        return_filter_valid=0;
+        if(favorites_only&&total_favorites()==0)favorites_only=0;
+    }else{
+        if(total_favorites()>0)favorites_only=1;
+        else favorites_only=0;
+    }
     selection=0;
     if(last_selected_uuid[0])restore_selection_from_uuid();
     else clamp_selection();
@@ -134,6 +165,10 @@ void streams_handle_event(ScreenContext *c,const SDL_Event *e){
         int ai=actual_index(selection);if(ai<0)return;
         if(entries[ai].uuid[0])
             snprintf(last_selected_uuid,sizeof(last_selected_uuid),"%s",entries[ai].uuid);
+
+        return_favorites_only=favorites_only;
+        return_filter_valid=1;
+
         char err[256]="";
         if(streaming_start(&entries[ai],err,sizeof(err))==0){
             if(c->music&&*c->music&&Mix_PlayingMusic()&&!Mix_PausedMusic())

@@ -12,6 +12,7 @@ if 'hoerspiel_forward_dial' in s:
     print('already patched')
     sys.exit(0)
 
+# Add the headers needed by the tiny Unix datagram sender.
 needle='#include <sys/types.h>'
 if needle not in s:
     raise SystemExit('unexpected PulseAudio source: sys/types.h include not found')
@@ -58,11 +59,14 @@ static void hoerspiel_forward_dial(const char *buf) {
     close(fd);
 }
 '''
+# Insert helper immediately before hfp_rfcomm_handle.
 marker='static bool hfp_rfcomm_handle('
 pos=s.find(marker)
 if pos < 0:
     raise SystemExit('unexpected PulseAudio source: hfp_rfcomm_handle not found')
 s=s[:pos]+helper+'\n'+s[pos:]
+
+# Inject side-channel forwarding at the first opening brace of the function.
 start=s.find(marker, pos+len(helper))
 brace=s.find('{', start)
 if brace < 0:

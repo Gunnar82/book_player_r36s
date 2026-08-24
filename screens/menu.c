@@ -78,15 +78,20 @@ static void add_directory_children(const char *path)
 
         if (has_dirs) {
             char label[256];
-            snprintf(label, sizeof(label), "%s/", names[i]);
+            snprintf(label,sizeof(label),"%.*s/",(int)sizeof(label)-2,names[i]);
             add_entry(BROWSER_DIRECTORY, label, paths[i]);
         } else if (has_audio) {
             char label[256];
             unsigned int dial_id = ensure_book_dial_id(paths[i]);
             if (bluetooth_adapter_present() && dial_id >= 1001)
-                snprintf(label, sizeof(label), "%s [%u]", names[i], dial_id);
+                {
+                    char suffix[32];
+                    snprintf(suffix,sizeof(suffix)," [%u]",dial_id);
+                    size_t keep=sizeof(label)-1-strlen(suffix);
+                    snprintf(label,sizeof(label),"%.*s%s",(int)keep,names[i],suffix);
+                }
             else
-                snprintf(label, sizeof(label), "%s", names[i]);
+                snprintf(label,sizeof(label),"%.*s",(int)sizeof(label)-1,names[i]);
             add_entry(BROWSER_BOOK, label, paths[i]);
         }
     }

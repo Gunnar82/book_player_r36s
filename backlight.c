@@ -65,8 +65,15 @@ void init_backlight(void)
 
 void set_display_off(int off)
 {
+#ifdef BUILD_BATOCERA
+    if (backlight_max <= 0) {
+        display_off = off ? 1 : 0;
+        return;
+    }
+#else
     if (backlight_max <= 0)
         return;
+#endif
 
     if (off) {
         if (!display_off) {
@@ -118,4 +125,13 @@ int set_brightness_percent(int percent)
     backlight_saved = value;
     if (display_off) return 0;
     return write_backlight_value(BACKLIGHT_PATH, value);
+}
+
+int display_needs_software_blank(void)
+{
+#ifdef BUILD_BATOCERA
+    return display_off && backlight_max <= 0;
+#else
+    return 0;
+#endif
 }

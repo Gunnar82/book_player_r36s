@@ -1,6 +1,7 @@
 #include "downloadsettings.h"
 #include "../storage.h"
 #include "../ui.h"
+#include "../systemstats.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

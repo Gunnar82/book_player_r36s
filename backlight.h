@@ -12,6 +12,7 @@ void toggle_display_hw(void);
 
 /* 1 = Display ist gerade ausgeschaltet, 0 = an. */
 int is_display_off(void);
+int display_needs_software_blank(void);
 
 /* Aktuelle Helligkeit in Prozent (10..100), -1 falls nicht verfuegbar. */
 int get_brightness_percent(void);

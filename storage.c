@@ -11,6 +11,35 @@
 #include <unistd.h>
 #define CONFIG_FILE "config.ini"
 static char config_path[1024];
+
+static int copy_checked(char *dst,size_t dst_size,const char *src){
+    if(!dst||dst_size==0)return -1;
+    if(!src){dst[0]='\0';return 0;}
+    size_t n=strlen(src);
+    if(n>=dst_size){
+        dst[0]='\0';
+        return -1;
+    }
+    memcpy(dst,src,n+1);
+    return 0;
+}
+
+static int join_path_checked(char *dst,size_t dst_size,const char *a,const char *b){
+    if(!dst||dst_size==0||!a||!b)return -1;
+    size_t al=strlen(a),bl=strlen(b);
+    size_t sep=(al>0&&a[al-1]!='/')?1:0;
+    if(al+sep+bl+1>dst_size){
+        dst[0]='\0';
+        return -1;
+    }
+    memcpy(dst,a,al);
+    size_t pos=al;
+    if(sep)dst[pos++]='/';
+    memcpy(dst+pos,b,bl);
+    dst[pos+bl]='\0';
+    return 0;
+}
+
 static int directory_exists(const char *path)
 {
     struct stat st;
@@ -26,7 +55,7 @@ static int has_book_content(const char *path)
         if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, ".."))
             continue;
         char child[1024];
-        snprintf(child, sizeof(child), "%s/%s", path, e->d_name);
+        if(join_path_checked(child,sizeof(child),path,e->d_name)!=0)continue;
         struct stat st;
         if (stat(child, &st) == 0) {
             if (S_ISDIR(st.st_mode) || S_ISREG(st.st_mode)) {
@@ -61,7 +90,7 @@ static void setup_config_path(void)
         char *slash = strrchr(exe_path, '/');
         if (slash) {
             *slash = '\0';
-            snprintf(config_path, sizeof(config_path), "%s/%s", exe_path, CONFIG_FILE);
+            if(join_path_checked(config_path,sizeof(config_path),exe_path,CONFIG_FILE)!=0)config_path[0]='\0';
             return;
         }
     }
@@ -103,13 +132,26 @@ static int write_default_config(void)
         "ca_cert=\n"
         "client_cert=\n"
         "client_key=\n"
-        "client_key_password=\n");
+        "client_key_password=\n"
+        "\n"
+        "[streams]\n"
+        "xml_url=\n"
+        "client_cert_mode=none\n"
+        "ca_cert=\n"
+        "client_cert=\n"
+        "client_key=\n"
+        "client_key_password=\n"
+        "\n"
+        "[input]\n"
+        "# R36S-Standard. Fuer andere Controller profile=custom setzen.\n"
+        "profile=r36s\n"
+        "dpad_mode=buttons\n");
     fclose(fp);
     return 0;
 }
 static void make_label(const char *path, char *label, size_t size)
 {
-    snprintf(label, size, "%s", path);
+    if(copy_checked(label,size,path)!=0 && size>0)label[size-1]='\0';
 }
 int get_storage_paths(StoragePath paths[], int max_paths)
 {
@@ -141,7 +183,7 @@ int get_storage_paths(StoragePath paths[], int max_paths)
             trim(value);
             if (!value[0])
                 continue;
-            snprintf(paths[count].path, sizeof(paths[count].path), "%s", value);
+            if(copy_checked(paths[count].path,sizeof(paths[count].path),value)!=0)continue;
             make_label(value, paths[count].label, sizeof(paths[count].label));
             paths[count].available = directory_exists(value) && has_book_content(value);
             count++;
@@ -241,6 +283,59 @@ fail:
     free(lines);
     return -1;
 }
+
+int load_ui_config(int *out_volume,int *out_idle,int *out_display,int *out_font)
+{
+    setup_config_path();
+    FILE *fp=fopen(config_path,"r");
+    if(!fp)return 0;
+    char line[1200];int in_ui=0,found=0;
+    while(fgets(line,sizeof(line),fp)){
+        trim(line);
+        if(!line[0]||line[0]=='#'||line[0]==';')continue;
+        if(line[0]=='['){in_ui=!strcmp(line,"[ui]");continue;}
+        if(!in_ui)continue;
+        char *eq=strchr(line,'=');if(!eq)continue;*eq++='\0';trim(line);trim(eq);
+        if(!strcmp(line,"volume")){if(out_volume)*out_volume=atoi(eq);found=1;}
+        else if(!strcmp(line,"idle_timer_minutes")){if(out_idle)*out_idle=atoi(eq);found=1;}
+        else if(!strcmp(line,"display_timeout_seconds")){if(out_display)*out_display=atoi(eq);found=1;}
+        else if(!strcmp(line,"menu_font_size")){if(out_font)*out_font=atoi(eq);found=1;}
+    }
+    fclose(fp);return found;
+}
+int save_ui_config(int v,int idle,int display,int font)
+{
+    setup_config_path();
+    FILE *fp=fopen(config_path,"r");char **lines=NULL;size_t count=0,cap=0;char line[1200];
+    if(fp){while(fgets(line,sizeof(line),fp)){if(count==cap){size_t nc=cap?cap*2:32;char **tmp=realloc(lines,nc*sizeof(*tmp));if(!tmp){fclose(fp);goto fail;}lines=tmp;cap=nc;}lines[count]=strdup(line);if(!lines[count]){fclose(fp);goto fail;}count++;}fclose(fp);}
+    fp=fopen(config_path,"w");if(!fp)goto fail;
+    int in=0,have=0,wv=0,wi=0,wd=0,wf=0;
+    for(size_t i=0;i<count;i++){
+        char check[1200];snprintf(check,sizeof(check),"%s",lines[i]);trim(check);
+        if(check[0]=='['){
+            if(in){if(!wv)fprintf(fp,"volume=%d\n",v);if(!wi)fprintf(fp,"idle_timer_minutes=%d\n",idle);if(!wd)fprintf(fp,"display_timeout_seconds=%d\n",display);if(!wf)fprintf(fp,"menu_font_size=%d\n",font);}
+            in=!strcmp(check,"[ui]");if(in)have=1;fputs(lines[i],fp);continue;
+        }
+        if(in&&!strncmp(check,"volume=",7)){fprintf(fp,"volume=%d\n",v);wv=1;continue;}
+        if(in&&!strncmp(check,"idle_timer_minutes=",19)){fprintf(fp,"idle_timer_minutes=%d\n",idle);wi=1;continue;}
+        if(in&&!strncmp(check,"display_timeout_seconds=",24)){fprintf(fp,"display_timeout_seconds=%d\n",display);wd=1;continue;}
+        if(in&&!strncmp(check,"menu_font_size=",15)){fprintf(fp,"menu_font_size=%d\n",font);wf=1;continue;}
+        fputs(lines[i],fp);
+    }
+    if(in){if(!wv)fprintf(fp,"volume=%d\n",v);if(!wi)fprintf(fp,"idle_timer_minutes=%d\n",idle);if(!wd)fprintf(fp,"display_timeout_seconds=%d\n",display);if(!wf)fprintf(fp,"menu_font_size=%d\n",font);}
+    else if(!have){if(count&&lines[count-1][0]&&lines[count-1][strlen(lines[count-1])-1]!='\n')fputc('\n',fp);fprintf(fp,"\n[ui]\nvolume=%d\nidle_timer_minutes=%d\ndisplay_timeout_seconds=%d\nmenu_font_size=%d\n",v,idle,display,font);}
+    if(fflush(fp)!=0||fsync(fileno(fp))!=0){fclose(fp);goto fail;}if(fclose(fp)!=0)goto fail;
+    for(size_t i=0;i<count;i++)
+        free(lines[i]);
+    free(lines);
+    return 0;
+fail:
+    for(size_t i=0;i<count;i++)
+        free(lines[i]);
+    free(lines);
+    return -1;
+}
+
 int repeat_book = 0;
 int shutdown_after_tracks = 0;
 int shutdown_at_book_end = 0;
@@ -261,6 +356,10 @@ void load_playback_config(void)
         if (line[0] == '[') { in_playback = !strcmp(line, "[playback]"); continue; }
         if (in_playback && !strncmp(line, "repeat_book=", 12))
             repeat_book = atoi(line + 12) ? 1 : 0;
+        else if (in_playback && !strncmp(line, "shutdown_after_tracks=", 22))
+            shutdown_after_tracks = atoi(line + 22);
+        else if (in_playback && !strncmp(line, "shutdown_at_book_end=", 21))
+            shutdown_at_book_end = atoi(line + 21) ? 1 : 0;
     }
     fclose(fp);
 }
@@ -270,7 +369,7 @@ int save_playback_config(void)
     char **lines = NULL;
     size_t count = 0, cap = 0;
     char line[1200];
-    int in_section = 0, have_section = 0, wrote_repeat = 0;
+    int in_section = 0, have_section = 0, wrote_repeat = 0, wrote_tracks = 0, wrote_end = 0;
     setup_config_path();
     fp = fopen(config_path, "r");
     if (fp) {
@@ -294,7 +393,11 @@ int save_playback_config(void)
         snprintf(check, sizeof(check), "%s", lines[i]);
         trim(check);
         if (check[0] == '[') {
-            if (in_section && !wrote_repeat) fprintf(fp, "repeat_book=%d\n", repeat_book ? 1 : 0);
+            if (in_section) {
+                if (!wrote_repeat) fprintf(fp, "repeat_book=%d\n", repeat_book ? 1 : 0);
+                if (!wrote_tracks) fprintf(fp, "shutdown_after_tracks=%d\n", shutdown_after_tracks);
+                if (!wrote_end) fprintf(fp, "shutdown_at_book_end=%d\n", shutdown_at_book_end ? 1 : 0);
+            }
             in_section = !strcmp(check, "[playback]");
             if (in_section) have_section = 1;
             fputs(lines[i], fp);
@@ -305,15 +408,21 @@ int save_playback_config(void)
             wrote_repeat = 1;
             continue;
         }
-        if (in_section && (!strncmp(check, "shutdown_after_tracks=", 22) || !strncmp(check, "shutdown_at_book_end=", 21)))
-            continue;
+        if (in_section && !strncmp(check, "shutdown_after_tracks=", 22)) {
+            fprintf(fp, "shutdown_after_tracks=%d\n", shutdown_after_tracks); wrote_tracks = 1; continue;
+        }
+        if (in_section && !strncmp(check, "shutdown_at_book_end=", 21)) {
+            fprintf(fp, "shutdown_at_book_end=%d\n", shutdown_at_book_end ? 1 : 0); wrote_end = 1; continue;
+        }
         fputs(lines[i], fp);
     }
     if (in_section) {
         if (!wrote_repeat) fprintf(fp, "repeat_book=%d\n", repeat_book ? 1 : 0);
+        if (!wrote_tracks) fprintf(fp, "shutdown_after_tracks=%d\n", shutdown_after_tracks);
+        if (!wrote_end) fprintf(fp, "shutdown_at_book_end=%d\n", shutdown_at_book_end ? 1 : 0);
     } else if (!have_section) {
         if (count > 0 && lines[count-1][0] && lines[count-1][strlen(lines[count-1])-1] != '\n') fputc('\n', fp);
-        fprintf(fp, "\n[playback]\nrepeat_book=%d\n", repeat_book ? 1 : 0);
+        fprintf(fp, "\n[playback]\nrepeat_book=%d\nshutdown_after_tracks=%d\nshutdown_at_book_end=%d\n", repeat_book ? 1 : 0, shutdown_after_tracks, shutdown_at_book_end ? 1 : 0);
     }
     if (fflush(fp) != 0 || fsync(fileno(fp)) != 0) { fclose(fp); goto fail; }
     if (fclose(fp) != 0) goto fail;

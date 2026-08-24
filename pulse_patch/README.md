@@ -1,20 +1,34 @@
-# PulseAudio-HFP- und BlueZ-PBAP-Patches
+# PulseAudio 17 HFP dial forwarder - Test 2
 
-Dieser Ordner enthält die Systemanpassungen für die Navi-Integration des Hörspielplayers.
+Ziel: PulseAudio bleibt alleiniger HFP Audio Gateway. Eingehende `ATD...;`-Befehle werden nur zusätzlich an den Hörspielplayer gespiegelt. Das bestehende HFP-Verhalten wird noch nicht verändert.
 
-- `patch_backend_native.py`: Patch für PulseAudio 17 `backend-native.c`. Eingehende HFP-Wählbefehle `ATD...;` werden zusätzlich als `DIAL <ID>` an den lokalen Player-Socket gespiegelt.
-- `SYSTEM_PATCHES.md`: vollständige Dokumentation für PulseAudio-HFP und BlueZ-5.82-PBAP mit Dummy-Phonebook, ARM64-Docker-Build, Installation, Runtime-Abhängigkeiten, `obex-pbap.service`, Tests und Wiederherstellung.
+Der Player lauscht auf:
 
-Der Player-Socket lautet normalerweise:
+`$XDG_RUNTIME_DIR/hoerspiel-player-hfp.sock`
 
-```text
-/run/user/1000/hoerspiel-player-hfp.sock
+Typische Nachricht:
+
+`DIAL 1001`
+
+## Auf dem R36S bauen
+
+Für den exakt installierten Debian-Trixie-Stand `17.0+dfsg1-2+b1` zuerst die Build-Werkzeuge und Quellen bereitstellen. Falls `apt source pulseaudio` meldet, dass keine `deb-src`-Quelle konfiguriert ist, muss diese für Debian Trixie einmal aktiviert werden.
+
+```sh
+sudo apt install build-essential devscripts dpkg-dev meson ninja-build
+mkdir -p ~/src && cd ~/src
+apt source pulseaudio=17.0+dfsg1-2
+cd pulseaudio-17.0+dfsg1
+python3 /pfad/zum/player/pulse_patch/patch_backend_native.py src/modules/bluetooth/backend-native.c
 ```
 
-Das PBAP-Telefonbuch liegt bei Benutzer `ark` unter:
+Danach das Debian-Paket regulär neu bauen. Für den ersten Test reicht es auch, nur das erzeugte `libbluez5-util.so` aus dem passenden Build zu installieren, aber ein korrekt gebautes Debian-Paket ist sicherer und leichter rückgängig zu machen.
 
-```text
-/home/ark/phonebook/telecom/pb/
-```
+## Was der Patch absichtlich NICHT macht
 
-Die beiden Systempatches sind unabhängig vom Player rückgängig zu machen. Vor dem Ersetzen der Originaldateien müssen diese wie in `SYSTEM_PATCHES.md` beschrieben gesichert werden.
+- Kein Fake-Anrufstatus.
+- Kein `OK` für `ATD`.
+- Kein Umschalten von A2DP/HFP.
+- Keine Hörspiel-Zuordnung.
+
+Das Navi kann deshalb weiterhin `Anruf fehlgeschlagen` anzeigen. Für Test 2 zählt nur, ob im Player-Log `HFP Dial: 1001` erscheint.

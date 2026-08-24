@@ -17,6 +17,53 @@ static char stream_meta_extra[128]="";
 static char stream_meta_description[512]="";
 
 
+
+static Uint32 stream_title_scroll_started=0;
+static char stream_title_scroll_text[256]="";
+
+static void draw_stream_title_marquee(SDL_Renderer *r,TTF_Font *font,const char *text,
+                                      int x,int y,int max_width,SDL_Color color){
+ if(!text||!text[0])return;
+
+ int w=0,h=0;
+ if(TTF_SizeUTF8(font,text,&w,&h)!=0){
+  draw_text(r,font,text,x,y,color);
+  return;
+ }
+
+ if(w<=max_width){
+  draw_text(r,font,text,x,y,color);
+  return;
+ }
+
+ if(strcmp(stream_title_scroll_text,text)){
+  snprintf(stream_title_scroll_text,sizeof(stream_title_scroll_text),"%s",text);
+  stream_title_scroll_started=SDL_GetTicks();
+ }
+
+ const Uint32 pause_ms=1500;
+ const int gap_px=80;
+ const int speed_px_s=45;
+ Uint32 elapsed=SDL_GetTicks()-stream_title_scroll_started;
+
+ int cycle=w+gap_px;
+ int offset=0;
+ if(elapsed>pause_ms){
+  offset=(int)(((Uint64)(elapsed-pause_ms)*speed_px_s)/1000ULL)%cycle;
+ }
+
+ SDL_Rect old_clip;
+ SDL_RenderGetClipRect(r,&old_clip);
+ SDL_Rect clip={x,y,max_width,h+4};
+ SDL_RenderSetClipRect(r,&clip);
+
+ draw_text(r,font,text,x-offset,y,color);
+ draw_text(r,font,text,x-offset+cycle,y,color);
+
+ if(old_clip.w>0&&old_clip.h>0)SDL_RenderSetClipRect(r,&old_clip);
+ else SDL_RenderSetClipRect(r,NULL);
+}
+
 static void draw_stream_text_fit(SDL_Renderer *r,TTF_Font *font,const char *text,
                                  int x,int y,int max_width,SDL_Color color){
  if(!text||!text[0])return;
@@ -140,9 +187,9 @@ void player_render(ScreenContext *c){
    const int qr_size=155;
    const int text_max=qr_x-35;
 
-   draw_stream_text_fit(c->renderer,c->font,
-                        stream_meta_title[0]?stream_meta_title:"Online Stream",
-                        20,100,text_max,c->selected);
+   draw_stream_title_marquee(c->renderer,c->font,
+                            stream_meta_title[0]?stream_meta_title:"Online Stream",
+                            20,100,SCREEN_W-40,c->selected);
    draw_stream_text_fit(c->renderer,c->font,
                         stream_meta_extra[0]?stream_meta_extra:"LIVE",
                         20,145,text_max,c->white);

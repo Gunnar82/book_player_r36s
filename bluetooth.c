@@ -29,6 +29,56 @@ static void trim(char *s)
     size_t n=strlen(s);while(n&&isspace((unsigned char)s[n-1]))s[--n]='\0';
 }
 
+
+
+int bluetooth_service_available(void)
+{
+    sd_bus *bus=NULL;
+    sd_bus_creds *creds=NULL;
+
+    if(sd_bus_open_system(&bus)<0)
+        return 0;
+
+    int r=sd_bus_get_name_creds(bus,"org.bluez",0,&creds);
+
+    sd_bus_creds_unref(creds);
+    sd_bus_unref(bus);
+
+    return r>=0;
+}
+
+int bluetooth_adapter_powered(void)
+{
+    if(!bluetooth_adapter_present())return 0;
+    if(!bluetooth_service_available())return 0;
+
+    sd_bus *bus=NULL;
+    if(sd_bus_open_system(&bus)<0)return 0;
+
+    int powered=0;
+    const char *paths[]={"/org/bluez/hci0","/org/bluez/hci1"};
+    for(size_t i=0;i<sizeof(paths)/sizeof(paths[0]);i++){
+        int value=0;
+        int r=sd_bus_get_property_trivial(
+            bus,
+            "org.bluez",
+            paths[i],
+            "org.bluez.Adapter1",
+            "Powered",
+            NULL,
+            'b',
+            &value
+        );
+        if(r>=0&&value){
+            powered=1;
+            break;
+        }
+    }
+
+    sd_bus_unref(bus);
+    return powered;
+}
+
 void bluetooth_load_config(void)
 {
     bluetooth_autoconnect=0;bluetooth_device_mac[0]='\0';
@@ -68,9 +118,13 @@ int bluetooth_save_config(void)
     if(in){if(!wrote_auto)fprintf(fp,"autoconnect=%d\n",bluetooth_autoconnect);if(!wrote_dev)fprintf(fp,"device=%s\n",bluetooth_device_mac);}
     else if(!have){if(count&&lines[count-1][0]&&lines[count-1][strlen(lines[count-1])-1]!='\n')fputc('\n',fp);fprintf(fp,"\n[bluetooth]\nautoconnect=%d\ndevice=%s\n",bluetooth_autoconnect,bluetooth_device_mac);}
     if(fflush(fp)!=0||fsync(fileno(fp))!=0){fclose(fp);goto fail;}if(fclose(fp)!=0)goto fail;
-    for(size_t i=0;i<count;i++)free(lines[i]);free(lines);return 0;
+    for(size_t i=0;i<count;i++)free(lines[i]);
+    free(lines);
+    return 0;
 fail:
-    for(size_t i=0;i<count;i++)free(lines[i]);free(lines);return -1;
+    for(size_t i=0;i<count;i++)free(lines[i]);
+    free(lines);
+    return -1;
 }
 
 static int device_info(const char *mac,char *name,size_t name_size,int *paired,int *trusted,int *connected)
@@ -117,7 +171,7 @@ static void mac_to_bluez_path(const char *mac,char *path,size_t path_size)
 
 int bluetooth_connect_device(const char *mac)
 {
-    if(!bluetooth_adapter_present()){app_logf("Bluetooth: kein Adapter vorhanden");return -1;}
+    if(!bluetooth_adapter_powered()){app_logf("Bluetooth: Adapter ausgeschaltet oder nicht verfuegbar");return -1;}
     if(!mac||strlen(mac)!=17)return -1;
 
     int paired=0,trusted=0,connected=0;
@@ -190,7 +244,7 @@ int bluetooth_connect_device(const char *mac)
 
 void bluetooth_autoconnect_start(void)
 {
-    if(!bluetooth_adapter_present())return;
+    if(!bluetooth_adapter_powered())return;
     if(!bluetooth_autoconnect||strlen(bluetooth_device_mac)!=17)return;
     pid_t pid=fork();
     if(pid<0){app_logf("Bluetooth Autoconnect: fork fehlgeschlagen");return;}
@@ -204,4 +258,45 @@ void bluetooth_autoconnect_start(void)
     }
     waitpid(pid,NULL,0);
     app_logf("Bluetooth Autoconnect: %s",bluetooth_device_mac);
+}
+
+
+void bluetooth_log_status(void)
+{
+    int present=bluetooth_adapter_present();
+    int service=bluetooth_service_available();
+    int powered=bluetooth_adapter_powered();
+
+    app_logf("Bluetooth: adapter=%s bluez=%s powered=%s",
+             present?"ja":"nein",
+             service?"ja":"nein",
+             powered?"ja":"nein");
+}
+
+
+void bluetooth_log_if_changed(void)
+{
+    static int initialized=0;
+    static int last_present=-1;
+    static int last_service=-1;
+    static int last_powered=-1;
+
+    int present=bluetooth_adapter_present();
+    int service=bluetooth_service_available();
+    int powered=bluetooth_adapter_powered();
+
+    if(!initialized||
+       present!=last_present||
+       service!=last_service||
+       powered!=last_powered){
+        app_logf("=== Bluetooth ===");
+        app_logf("Bluetooth: adapter=%s bluez=%s powered=%s",
+                 present?"ja":"nein",
+                 service?"ja":"nein",
+                 powered?"ja":"nein");
+        last_present=present;
+        last_service=service;
+        last_powered=powered;
+        initialized=1;
+    }
 }

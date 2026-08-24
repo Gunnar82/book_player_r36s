@@ -77,7 +77,6 @@ static int xfer_info(void *userdata,curl_off_t dltotal,curl_off_t dlnow,curl_off
                        p->total_size,p->userdata)?1:0;
 }
 
-static int selection_progress(void *userdata_name);
 
 static void set_tls_options(CURL *curl)
 {

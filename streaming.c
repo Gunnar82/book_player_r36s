@@ -27,6 +27,7 @@ static int stream_paused=0;
 static int stream_backend=0; /* 0=none, 1=mpv, 2=ffmpeg */
 static int stream_session=0;
 static char current_name[STREAM_NAME_LEN]="";
+/* current_name/current_url sind Anzeige-/Laufzeitdaten, keine stabile Sender-ID. */
 static char current_url[STREAM_URL_LEN]="";
 
 typedef struct { char *data; size_t size; } Buffer;
@@ -75,6 +76,7 @@ static int attr(const char *station,const char *name,char *out,size_t out_size){
     trim(out);
     return 1;
 }
+
 
 static int starts_http(const char *s){
     return s && (!strncmp(s,"http://",7) || !strncmp(s,"https://",8));
@@ -481,7 +483,7 @@ static void streaming_ensure_config_section(void){
             if(!have_cert)fprintf(out,"client_cert=\n");
             if(!have_key)fprintf(out,"client_key=\n");
             if(!have_pass)fprintf(out,"client_key_password=\n");
-            if(!have_favorites)fprintf(out,"favorites=\n");
+                if(!have_favorites)fprintf(out,"favorites=\n");
         }
     }
 
@@ -503,7 +505,16 @@ void streaming_load_config(void){
     char line[4096],section[64]="";
     while(fgets(line,sizeof(line),fp)){
         trim(line); if(!line[0]||line[0]=='#'||line[0]==';')continue;
-        if(line[0]=='['){char *e=strchr(line,']');if(e){*e='\0';snprintf(section,sizeof(section),"%s",line+1);}continue;}
+        if(line[0]=='['){
+            char *e=strchr(line,']');
+            if(e){
+                size_t n=(size_t)(e-(line+1));
+                if(n>=sizeof(section))n=sizeof(section)-1;
+                memcpy(section,line+1,n);
+                section[n]='\0';
+            }
+            continue;
+        }
         if(strcmp(section,"streams"))continue;
         char *eq=strchr(line,'='); if(!eq)continue; *eq++='\0'; trim(line);trim(eq);
         if(!strcmp(line,"xml_url"))snprintf(stream_xml_url,sizeof(stream_xml_url),"%s",eq);
@@ -630,6 +641,7 @@ int streaming_fetch_xml(StreamEntry **entries,int *count_out,char *err,size_t er
     return 0;
 }
 
+
 #define STREAM_BACKEND_NONE 0
 #define STREAM_BACKEND_MPV 1
 #define STREAM_BACKEND_FFMPEG 2
@@ -731,6 +743,7 @@ static int metadata_parse_line(const char *line,char *station,size_t station_siz
     trim(key);
     trim(value);
 
+    /* optionale einfache Quotes entfernen */
     size_t vl=strlen(value);
     if(vl>=2 && ((value[0]=='\'' && value[vl-1]=='\'') ||
                  (value[0]=='"'  && value[vl-1]=='"'))){
@@ -1042,6 +1055,7 @@ const char *streaming_backend_name(void){
 int streaming_backend_available(void){
     return find_mpv_binary()!=NULL || find_ffmpeg_binary()!=NULL;
 }
+
 
 int streaming_session_active(void){
     return stream_session;

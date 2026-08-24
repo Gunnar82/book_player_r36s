@@ -45,10 +45,14 @@ SOURCES := \
 OBJECTS := $(SOURCES:.c=.o)
 
 .PHONY: all clean
+
 all: hoerspiel_player
+
 hoerspiel_player: $(OBJECTS)
 	$(CC) -o $@ $(OBJECTS) $(PKG_LIBS)
+
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -c $< -o $@
+
 clean:
 	rm -f $(OBJECTS) hoerspiel_player

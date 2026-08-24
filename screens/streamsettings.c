@@ -93,7 +93,7 @@ static void change_cert_mode(int direction){
 }
 
 void streamsettings_reset(void){
-    selection=1;
+    selection=1; /* Zertifikatsmodus ist die einzige editierbare Zeile. */
     scroll_offset=0;
     message[0]='\0';
     message_until=0;
@@ -103,27 +103,50 @@ void streamsettings_handle_event(ScreenContext *c,const SDL_Event *e){
     Row rows[16];
     int count=build_rows(rows);
     keep_visible(count);
+
     if(e->type==SDL_JOYBUTTONDOWN){
         int b=e->jbutton.button;
-        if(b==BUTTON_B||(b==BUTTON_DPAD_LEFT&&!rows[selection].selectable)){*c->screen=SCREEN_SYSTEM_INFO;return;}
+
+        if(b==BUTTON_B||(b==BUTTON_DPAD_LEFT&&!rows[selection].selectable)){
+            *c->screen=SCREEN_SYSTEM_INFO;
+            return;
+        }
+
         if(b==BUTTON_DPAD_UP){move_selection(-1);return;}
         if(b==BUTTON_DPAD_DOWN){move_selection(1);return;}
+
         if(rows[selection].selectable){
             if(b==BUTTON_DPAD_LEFT){change_cert_mode(-1);return;}
             if(b==BUTTON_DPAD_RIGHT||b==BUTTON_A){change_cert_mode(1);return;}
         }
-        if(b==BUTTON_B){*c->screen=SCREEN_SYSTEM_INFO;return;}
+
+        if(b==BUTTON_B){
+            *c->screen=SCREEN_SYSTEM_INFO;
+            return;
+        }
     }
+
     if(e->type==SDL_JOYAXISMOTION){
         if(e->jaxis.axis==AXIS_Y){
-            if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){move_selection(-1);*c->axis_y_lock=1;}
-            else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){move_selection(1);*c->axis_y_lock=1;}
+            if(!*c->axis_y_lock&&e->jaxis.value<-AXIS_DEADZONE){
+                move_selection(-1);
+                *c->axis_y_lock=1;
+            }else if(!*c->axis_y_lock&&e->jaxis.value>AXIS_DEADZONE){
+                move_selection(1);
+                *c->axis_y_lock=1;
+            }
             if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_y_lock=0;
         }
+
         if(e->jaxis.axis==AXIS_X){
             if(rows[selection].selectable&&!*c->axis_x_lock){
-                if(e->jaxis.value<-AXIS_DEADZONE){change_cert_mode(-1);*c->axis_x_lock=1;}
-                else if(e->jaxis.value>AXIS_DEADZONE){change_cert_mode(1);*c->axis_x_lock=1;}
+                if(e->jaxis.value<-AXIS_DEADZONE){
+                    change_cert_mode(-1);
+                    *c->axis_x_lock=1;
+                }else if(e->jaxis.value>AXIS_DEADZONE){
+                    change_cert_mode(1);
+                    *c->axis_x_lock=1;
+                }
             }
             if(abs(e->jaxis.value)<AXIS_DEADZONE)*c->axis_x_lock=0;
         }
@@ -134,8 +157,12 @@ void streamsettings_render(ScreenContext *c){
     Row rows[16];
     int count=build_rows(rows);
     keep_visible(count);
+
     draw_text(c->renderer,c->font,"Streams",20,20,c->selected);
-    int end=scroll_offset+MAX_ROWS;if(end>count)end=count;
+
+    int end=scroll_offset+MAX_ROWS;
+    if(end>count)end=count;
+
     int y=TOP_Y;
     for(int i=scroll_offset;i<end;i++,y+=ROW_H){
         SDL_Color col=(i==selection)?c->selected:(rows[i].selectable?c->white:c->gray);
@@ -143,6 +170,11 @@ void streamsettings_render(ScreenContext *c){
         snprintf(line,sizeof(line),"%-18s %s",rows[i].label,rows[i].value);
         draw_text(c->renderer,c->font,line,25,y,col);
     }
-    if(message[0]&&(Sint32)(message_until-SDL_GetTicks())>0)draw_text(c->renderer,c->font,message,25,SCREEN_H-62,c->selected);
-    draw_text(c->renderer,c->font,"Links/Rechts/A: Zertifikat   B: Zurueck",20,SCREEN_H-30,c->gray);
+
+    if(message[0]&&(Sint32)(message_until-SDL_GetTicks())>0)
+        draw_text(c->renderer,c->font,message,25,SCREEN_H-62,c->selected);
+
+    draw_text(c->renderer,c->font,
+              "Links/Rechts/A: Zertifikat   B: Zurueck",
+              20,SCREEN_H-30,c->gray);
 }

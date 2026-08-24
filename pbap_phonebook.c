@@ -12,6 +12,19 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+static int join_path_checked(char *dst,size_t dst_size,const char *a,const char *b){
+    if(!dst||dst_size==0||!a||!b)return -1;
+    size_t al=strlen(a),bl=strlen(b);
+    size_t sep=(al>0&&a[al-1]!='/')?1:0;
+    if(al+sep+bl+1>dst_size){dst[0]='\0';return -1;}
+    memcpy(dst,a,al);
+    size_t pos=al;
+    if(sep)dst[pos++]='/';
+    memcpy(dst+pos,b,bl);
+    dst[pos+bl]='\0';
+    return 0;
+}
+
 static char phonebook_dir[512];
 
 static int ensure_dir(const char *path)
@@ -31,8 +44,8 @@ static int ensure_phonebook_dirs(void)
 
     char base[512], telecom[512];
     snprintf(base, sizeof(base), "%s/phonebook", home);
-    snprintf(telecom, sizeof(telecom), "%s/telecom", base);
-    snprintf(phonebook_dir, sizeof(phonebook_dir), "%s/pb", telecom);
+    if(join_path_checked(telecom,sizeof(telecom),base,"telecom")!=0)return -1;
+    if(join_path_checked(phonebook_dir,sizeof(phonebook_dir),telecom,"pb")!=0)return -1;
 
     int rc = ensure_dir(base); if (rc < 0) return rc;
     rc = ensure_dir(telecom); if (rc < 0) return rc;

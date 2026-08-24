@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include "bluetooth.h"
 
 #define MPRIS_PATH "/org/mpris/MediaPlayer2"
 #define MPRIS_NAME "org.mpris.MediaPlayer2.HoerspielPlayer"
@@ -218,11 +219,13 @@ out:
     return r;
 }
 
+#ifndef BUILD_BATOCERA
 static const sd_bus_vtable object_manager_vtable[]={
     SD_BUS_VTABLE_START(0),
     SD_BUS_METHOD("GetManagedObjects","","a{oa{sa{sv}}}",object_manager_get,SD_BUS_VTABLE_UNPRIVILEGED),
     SD_BUS_VTABLE_END
 };
+#endif
 
 static int register_bluez(MprisBridge *b)
 {
@@ -238,18 +241,37 @@ static int register_bluez(MprisBridge *b)
         char adapter[64];snprintf(adapter,sizeof(adapter),"/org/bluez/hci%d",i);
         sd_bus_message *m=NULL,*reply=NULL;
         sd_bus_error error=SD_BUS_ERROR_NULL;
+#ifdef BUILD_BATOCERA
+        int r=sd_bus_message_new_method_call(b->system_bus,&m,"org.bluez",adapter,"org.bluez.Media1","RegisterPlayer");
+        if(r<0){app_logf("BlueZ Media hci%d: RegisterPlayer Nachricht fehlgeschlagen (%d)",i,r);continue;}
+        r=sd_bus_message_append(m,"o",BLUEZ_PLAYER);
+#else
         int r=sd_bus_message_new_method_call(b->system_bus,&m,"org.bluez",adapter,"org.bluez.Media1","RegisterApplication");
         if(r<0)continue;
         r=sd_bus_message_append(m,"o",BLUEZ_ROOT);
+#endif
         if(r>=0)r=sd_bus_message_open_container(m,'a',"{sv}");
         if(r>=0)r=sd_bus_message_close_container(m);
         if(r>=0)r=sd_bus_call(b->system_bus,m,1000000,&error,&reply);
         int already=(r<0&&sd_bus_error_has_name(&error,"org.bluez.Error.AlreadyExists"));
+#ifdef BUILD_BATOCERA
+        if(r<0&&!already){
+            app_logf("BlueZ Media hci%d: RegisterPlayer fehlgeschlagen (%d) %s%s%s",
+                     i,r,
+                     error.name?error.name:"",
+                     (error.name&&error.message)?": ":"",
+                     error.message?error.message:"");
+        }
+#endif
         sd_bus_error_free(&error);sd_bus_message_unref(reply);sd_bus_message_unref(m);
         if(r>=0||already){
             b->bluez_registered=1;
             if(r>=0){
+#ifdef BUILD_BATOCERA
+                app_logf(was_registered?"BlueZ MediaPlayer nach Neustart erneut auf hci%d registriert":"BlueZ MediaPlayer via RegisterPlayer auf hci%d registriert",i);
+#else
                 app_logf(was_registered?"BlueZ Media nach Neustart erneut auf hci%d registriert":"BlueZ Media auf hci%d registriert",i);
+#endif
             }
             return r>=0?1:0;
         }
@@ -261,7 +283,8 @@ static int register_bluez(MprisBridge *b)
 
 void mpris_bridge_init(MprisBridge *b)
 {
-    if(!b)return;memset(b,0,sizeof(*b));
+    if(!b)return;
+    memset(b,0,sizeof(*b));
     snprintf(b->playback_status,sizeof(b->playback_status),"Stopped");b->volume=1.0;
     if(sd_bus_default_user(&b->session_bus)>=0){
         int r=sd_bus_add_object_vtable(b->session_bus,&b->session_root_slot,MPRIS_PATH,ROOT_IFACE,root_vtable,b);
@@ -271,10 +294,20 @@ void mpris_bridge_init(MprisBridge *b)
         else app_logf("MPRIS %s bereit",MPRIS_NAME);
     }
     if(sd_bus_default_system(&b->system_bus)>=0){
+#ifdef BUILD_BATOCERA
+        int r=sd_bus_add_object_vtable(b->system_bus,&b->bluez_player_slot,BLUEZ_PLAYER,PLAYER_IFACE,player_vtable,b);
+        if(r<0){
+            app_logf("MPRIS/BlueZ Batocera Player-Export fehlgeschlagen (%d): BlueZ=%s",r,bluetooth_service_available()?"verfuegbar":"nicht verfuegbar");
+            sd_bus_flush_close_unref(b->system_bus);b->system_bus=NULL;
+        }else{
+            app_logf("MPRIS/BlueZ Batocera Player-Export bereit");
+        }
+#else
         int r=sd_bus_add_object_vtable(b->system_bus,&b->bluez_manager_slot,BLUEZ_ROOT,"org.freedesktop.DBus.ObjectManager",object_manager_vtable,b);
         if(r>=0)r=sd_bus_add_object_vtable(b->system_bus,&b->bluez_player_slot,BLUEZ_PLAYER,PLAYER_IFACE,player_vtable,b);
-        if(r<0){app_logf("MPRIS/BlueZ System-Bus-Export fehlgeschlagen (%d)",r);sd_bus_flush_close_unref(b->system_bus);b->system_bus=NULL;}
+        if(r<0){app_logf("MPRIS/BlueZ System-Bus-Export fehlgeschlagen (%d): BlueZ=%s; Export/Registrierung wird separat diagnostiziert",r,bluetooth_service_available()?"verfuegbar":"nicht verfuegbar");sd_bus_flush_close_unref(b->system_bus);b->system_bus=NULL;}
         else app_logf("MPRIS/BlueZ System-Bus Export bereit");
+#endif
     }
 }
 

@@ -15,6 +15,28 @@
 #define MAX_ROWS ((BOTTOM_Y-TOP_Y)/ROW_H)
 #define MAX_SELECTIONS 256
 
+
+static int join_path_checked(char *dst,size_t dst_size,const char *a,const char *b){
+    if(!dst||dst_size==0||!a||!b)return -1;
+    size_t al=strlen(a),bl=strlen(b);
+    size_t sep=(al>0&&a[al-1]!='/')?1:0;
+    if(al+sep+bl+1>dst_size){dst[0]='\0';return -1;}
+    memcpy(dst,a,al);
+    size_t pos=al;
+    if(sep)dst[pos++]='/';
+    memcpy(dst+pos,b,bl);
+    dst[pos+bl]='\0';
+    return 0;
+}
+static int copy_checked(char *dst,size_t dst_size,const char *src){
+    if(!dst||dst_size==0)return -1;
+    if(!src){dst[0]='\0';return 0;}
+    size_t n=strlen(src);
+    if(n>=dst_size){dst[0]='\0';return -1;}
+    memcpy(dst,src,n+1);
+    return 0;
+}
+
 static RemoteEntry entries[REMOTE_MAX_ENTRIES];
 static int entry_count=0;
 static int selection=0;
@@ -46,7 +68,7 @@ static void load_current(void){
         for(int i=0;i<entry_count;i++){
             if(entries[i].type!=REMOTE_DIRECTORY)continue;
             char candidate[REMOTE_PATH_LEN];
-            if(relative_path[0])snprintf(candidate,sizeof(candidate),"%s/%s",relative_path,entries[i].name);
+            if(relative_path[0]){if(join_path_checked(candidate,sizeof(candidate),relative_path,entries[i].name)!=0)continue;}
             else snprintf(candidate,sizeof(candidate),"%s",entries[i].name);
             if(!strcmp(candidate,return_selection_path)){selection=i;break;}
         }
@@ -63,7 +85,14 @@ static void parent_dir(void){
     loaded=0;
 }
 static void enter_directory(const char *name){if(relative_path[0])strncat(relative_path,"/",sizeof(relative_path)-strlen(relative_path)-1);strncat(relative_path,name,sizeof(relative_path)-strlen(relative_path)-1);loaded=0;}
-static void full_path_for_entry(int idx,char *out,size_t out_size){if(idx<0||idx>=entry_count){if(out_size)out[0]='\0';return;}if(relative_path[0])snprintf(out,out_size,"%s/%s",relative_path,entries[idx].name);else snprintf(out,out_size,"%s",entries[idx].name);}
+static void full_path_for_entry(int idx,char *out,size_t out_size){
+ if(idx<0||idx>=entry_count){if(out_size)out[0]='\0';return;}
+ if(relative_path[0]){
+  if(join_path_checked(out,out_size,relative_path,entries[idx].name)!=0&&out_size)out[0]='\0';
+ }else{
+  if(copy_checked(out,out_size,entries[idx].name)!=0&&out_size)out[0]='\0';
+ }
+}
 static int selected_index(const char *path){for(int i=0;i<selected_count;i++)if(!strcmp(selected[i].relative_path,path))return i;return -1;}
 static int is_selected_entry(int idx){char path[REMOTE_PATH_LEN];full_path_for_entry(idx,path,sizeof(path));return selected_index(path)>=0;}
 static void toggle_selected(int idx){

@@ -18,5 +18,9 @@ int bluetooth_scan_paired_trusted(BluetoothDevice *devices,int max_devices);
 int bluetooth_connect_device(const char *mac);
 void bluetooth_autoconnect_start(void);
 int bluetooth_adapter_present(void);
+int bluetooth_service_available(void);
+int bluetooth_adapter_powered(void);
+void bluetooth_log_status(void);
+void bluetooth_log_if_changed(void);
 
 #endif
