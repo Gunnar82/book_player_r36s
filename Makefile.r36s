@@ -12,6 +12,7 @@ SOURCES := \
 	util.c \
 	config_update.c \
 	stream_config.c \
+	stream_favorites.c \
 	state.c \
 	backlight.c \
 	battery.c \
