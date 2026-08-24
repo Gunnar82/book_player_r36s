@@ -11,6 +11,7 @@ SOURCES := \
 	main.c \
 	util.c \
 	config_update.c \
+	download_config_save.c \
 	stream_config.c \
 	stream_favorites.c \
 	state.c \
