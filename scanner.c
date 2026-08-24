@@ -53,7 +53,8 @@ int directory_has_subdirectories(const char *dirpath)
     while ((e = readdir(dir)) != NULL) {
         if (e->d_name[0] == '.') continue;
         char path[512];
-        snprintf(path, sizeof(path), "%s/%s", dirpath, e->d_name);
+        if (snprintf(path, sizeof(path), "%s/%s", dirpath, e->d_name) >= (int)sizeof(path))
+            continue;
         if (is_real_directory(path)) { found = 1; break; }
     }
     closedir(dir);
@@ -81,7 +82,8 @@ int scan_books(const char *base, char names[][256], char paths[][512])
         if (e->d_name[0] == '.') continue;
 
         char path[512];
-        snprintf(path, sizeof(path), "%s/%s", base, e->d_name);
+        if (snprintf(path, sizeof(path), "%s/%s", base, e->d_name) >= (int)sizeof(path))
+            continue;
         if (!is_real_directory(path)) continue;
 
         snprintf(names[count], 256, "%s", e->d_name);
@@ -109,6 +111,19 @@ static const char *path_basename(const char *path)
     return slash ? slash + 1 : path;
 }
 
+static int cmp_string_ptr(const void *a, const void *b)
+{
+    const char *const *aa = a;
+    const char *const *bb = b;
+    return strcasecmp(*aa, *bb);
+}
+
+/*
+ * Rekursiver Scan mit kleiner Stack-Nutzung: Unterverzeichnisse werden
+ * dynamisch auf dem Heap gesammelt. Der alte Code legte pro Rekursionsebene
+ * zwei MAX_BOOKS-grosse Arrays auf dem Stack an, was auf Handhelds bei tiefen
+ * Verzeichnisbaeumen schnell mehrere hundert KiB pro Ebene verbrauchen konnte.
+ */
 static void scan_recursive_impl(const char *dirpath,
                                 char names[][256], char paths[][512],
                                 int *count)
@@ -122,11 +137,43 @@ static void scan_recursive_impl(const char *dirpath,
         if (*count >= MAX_BOOKS) return;
     }
 
-    char child_names[MAX_BOOKS][256];
-    char child_paths[MAX_BOOKS][512];
-    int child_count = scan_books(dirpath, child_names, child_paths);
-    for (int i = 0; i < child_count && *count < MAX_BOOKS; i++)
-        scan_recursive_impl(child_paths[i], names, paths, count);
+    DIR *dir = opendir(dirpath);
+    if (!dir) return;
+
+    char **children = NULL;
+    size_t child_count = 0;
+    size_t child_cap = 0;
+    struct dirent *e;
+
+    while ((e = readdir(dir)) != NULL) {
+        if (e->d_name[0] == '.') continue;
+
+        char child[512];
+        if (snprintf(child, sizeof(child), "%s/%s", dirpath, e->d_name) >= (int)sizeof(child))
+            continue;
+        if (!is_real_directory(child)) continue;
+
+        if (child_count == child_cap) {
+            size_t new_cap = child_cap ? child_cap * 2 : 8;
+            char **grown = realloc(children, new_cap * sizeof(*children));
+            if (!grown) break;
+            children = grown;
+            child_cap = new_cap;
+        }
+
+        children[child_count] = strdup(child);
+        if (!children[child_count]) break;
+        child_count++;
+    }
+    closedir(dir);
+
+    qsort(children, child_count, sizeof(*children), cmp_string_ptr);
+    for (size_t i = 0; i < child_count && *count < MAX_BOOKS; i++)
+        scan_recursive_impl(children[i], names, paths, count);
+
+    for (size_t i = 0; i < child_count; i++)
+        free(children[i]);
+    free(children);
 }
 
 int scan_books_recursive(const char *base, char names[][256], char paths[][512])
@@ -147,7 +194,8 @@ int scan_tracks(const char *dirpath, Track tracks[])
     while ((e = readdir(dir)) && count < MAX_TRACKS) {
         if (e->d_name[0] == '.' || !is_audio(e->d_name)) continue;
         snprintf(tracks[count].name, sizeof(tracks[count].name), "%s", e->d_name);
-        snprintf(tracks[count].path, sizeof(tracks[count].path), "%s/%s", dirpath, e->d_name);
+        if (snprintf(tracks[count].path, sizeof(tracks[count].path), "%s/%s", dirpath, e->d_name) >= (int)sizeof(tracks[count].path))
+            continue;
         count++;
     }
     closedir(dir);
