@@ -1,5 +1,6 @@
 #include "downloadsettings.h"
 #include "../storage.h"
+#include "../download_config_save.h"
 #include "../ui.h"
 #include "../systemstats.h"
 #include <stdio.h>
@@ -33,7 +34,7 @@ static int build_rows(Row *r){
     return n;
 }
 static void keep_visible(int count){if(selection<scroll_offset)scroll_offset=selection;if(selection>=scroll_offset+MAX_ROWS)scroll_offset=selection-MAX_ROWS+1;int max=count-MAX_ROWS;if(max<0)max=0;if(scroll_offset<0)scroll_offset=0;if(scroll_offset>max)scroll_offset=max;}
-static void toggle_downloads(void){downloads_enabled=!downloads_enabled;if(save_download_enabled()!=0)set_message("config.ini konnte nicht gespeichert werden");else set_message(downloads_enabled?"Downloads: An":"Downloads: Aus");}
+static void toggle_downloads(void){downloads_enabled=!downloads_enabled;if(download_config_save_enabled(downloads_enabled)!=0)set_message("config.ini konnte nicht gespeichert werden");else set_message(downloads_enabled?"Downloads: An":"Downloads: Aus");}
 void downloadsettings_reset(void){selection=0;scroll_offset=0;message[0]='\0';message_until=0;}
 
 void downloadsettings_handle_event(ScreenContext *c,const SDL_Event *e){

@@ -2,33 +2,25 @@
 
 Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist primär für den **R36S** entwickelt und enthält zusätzlich einen **Waveshare GPM2804 / Batocera**-Build.
 
-**Aktueller Stand: 0.3.50**
+**Aktueller Stand: 0.3.52**
 
-`main` ist die maßgebliche Quelle für den aktuellen Projektstand. Entwicklungs- und Sicherungsregeln stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
+`main` ist die maßgebliche Quelle für stabile Projektstände. Entwicklungsregeln und die Wiederaufnahme nach Kontextverlust stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
 ## Funktionen
 
 - lokale Hörspiel- und Trackauswahl mit Resume
-- mehrere konfigurierbare Speicherpfade
-- verschachtelte Hörspielordner
+- mehrere konfigurierbare Speicherpfade und verschachtelte Hörspielordner
 - Track- und Gesamtfortschritt
 - ID3-Tracktitel mit Dateinamen als Fallback
 - Lautstärke-, Akku- und Ladezeitanzeige
 - Sleep-, Idle- und Display-Timer
-- Tastensperre
-- persistente Nutzungsstatistik
-- Downloads aus XML-/nginx-Listings
-- HTTPS und optional mTLS für Downloads
+- Tastensperre und persistente Nutzungsstatistik
+- Downloads aus XML-/nginx-Listings, HTTPS und optional mTLS
 - rekursive Ordnerdownloads, Mehrfachauswahl, Fortschritt und Restzeitschätzung
-- Online-Streams aus XML-Quellen
-- Stream-Favoriten über `stationuuid`
+- Online-Streams aus XML-Quellen und Stream-Favoriten über `stationuuid`
 - Stream-Wiedergabe über `mpv`
-- MPRIS2 über D-Bus
-- BlueZ-/AVRCP-Integration
-- USB-/Headset-Mediatasten
-- Bluetooth-Hotplug-Erkennung
-- HFP-Wählkommandos für Hörspielsteuerung
-- PBAP-vCard-Telefonbuch für Hörspiele
+- MPRIS2, BlueZ/AVRCP, Bluetooth-Hotplug und USB-/Headset-Mediatasten
+- HFP-Wählkommandos und PBAP-vCard-Telefonbuch
 - integriertes Programm-Log und Button-Debug
 - konfigurierbare Controller-Belegung
 
@@ -36,36 +28,38 @@ Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist p
 
 ### R36S
 
-Hauptziel des Projekts. Der R36S-Build verwendet `BUILD_R36S`, die Standard-Controllerbelegung aus `config.h` und den Debian-DejaVu-Fontpfad.
+Hauptziel des Projekts. Der R36S-Build verwendet `BUILD_R36S`, die Standard-Controllerbelegung aus `config.h` und den Debian-DejaVu-Fontpfad. Der System-Shutdown läuft über den bestehenden logind-/D-Bus-Pfad.
 
 ### Waveshare GPM2804 / Batocera
 
-Zusätzlich existiert ein Batocera-Build mit `BUILD_BATOCERA` und eigener Beispielbelegung für den Controller. Der Export enthält Binary, benötigte Laufzeitbibliotheken und einen Starter. Der System-Shutdown wird im Batocera-Build auf `/sbin/shutdown -P -h now` abgebildet; der R36S behält seinen logind-/D-Bus-Pfad.
+Der Batocera-Build verwendet `BUILD_BATOCERA`. Der Export enthält Binary, benötigte Laufzeitbibliotheken und einen Starter. Da Batocera auf dem getesteten Gerät kein `busctl/loginctl` bereitstellt, wird Poweroff im Batocera-Build auf `/sbin/shutdown -P -h now` abgebildet. Dieser Pfad ist auf dem GPM2804 getestet.
 
 ## Projektstruktur
 
 Wichtige Dateien und Bereiche:
 
 - `main.c` – Hauptprogramm und Eventloop
-- `state.c/.h` – globaler Laufzeit- und UI-Zustand
+- `state.c/.h` – Laufzeit-, Resume- und UI-Zustand
 - `audio.c/.h` – lokale Audio-Wiedergabe
 - `scanner.c/.h` – Bibliotheks-/Hörspielscan
-- `storage.c/.h` – `config.ini`, Speicherpfade und persistente Einstellungen
+- `storage.c/.h` – Speicherpfade und Laden der `config.ini`
+- `util.c/.h` – gemeinsame String-/Pfad-Helfer
+- `config_update.c/.h` – gemeinsames atomisches Aktualisieren von INI-Sektionen
+- `download_config_save.c/.h` – Speichern des Download-Schalters
+- `hardware_config_save.c/.h` – Speichern der LED-Hardwareeinstellung
+- `playback_runtime.c` – Trennung persistenter Wiedergabeeinstellungen von Session-Shutdownwerten
+- `stream_config.c/.h` – Speichern der Stream-Zertifikatseinstellung
+- `stream_favorites.c/.h` – Persistenz der Stream-Favoriten
 - `download.c/.h` – Downloadlogik
 - `streaming.c/.h` – Online-Streams und mpv-Steuerung
-- `bluetooth.c/.h` – BlueZ-Erkennung und Bluetooth-Status
+- `bluetooth.c/.h` – BlueZ-Erkennung, Bluetooth-Status und Autoconnect
 - `mpris_bridge.c/.h` – MPRIS2-/BlueZ-Media-Anbindung
 - `media_keys.c/.h` – Linux-evdev-Mediatasten
 - `hfp_gateway.c/.h` – HFP-Dial-IPC
 - `pbap_phonebook.c/.h` – PBAP-vCards
-- `battery.c/.h`, `battery_bluez.c/.h` – Geräte-/Bluetooth-Akku
-- `backlight.c/.h` – Display-Hintergrundbeleuchtung
-- `input_config.c/.h` – Controllerprofile und Eingaben
-- `platform_system.c` – Batocera-spezifische Umleitung des Shutdown-Aufrufs
+- `app_shutdown.c` – Batocera-spezifische Poweroff-Anpassung
 - `screens/` – Menü-, Player-, Download-, Stream-, Bluetooth- und Diagnoseansichten
-- `Makefile` – Docker-Buildziele
-- `Makefile.r36s` – nativer R36S-Build im Container
-- `Makefile.gpm2804` – GPM2804/Batocera-Build
+- `tests/test_util_config.c` – Regressionstests für Utility- und Config-Writer
 
 ## Build
 
@@ -77,7 +71,7 @@ Docker wird für reproduzierbare ARM64-Builds verwendet.
 make r36s
 ```
 
-Das Ergebnis wird nach `dist-r36s/` exportiert. Das Paket enthält das Player-Binary sowie die benötigten dynamischen Laufzeitbibliotheken und den ARM64-Loader.
+Das Ergebnis wird nach `dist-r36s/` exportiert.
 
 ### GPM2804 / Batocera
 
@@ -85,32 +79,19 @@ Das Ergebnis wird nach `dist-r36s/` exportiert. Das Paket enthält das Player-Bi
 make gpm2804
 ```
 
-Das Ergebnis wird nach `dist-batocera/` exportiert. Zusätzlich werden eine Beispielkonfiguration `config.gpm2804.ini` und `hoerspiel.sh` erzeugt.
+Das Ergebnis wird nach `dist-batocera/` exportiert. Zusätzlich werden `config.gpm2804.ini` und `hoerspiel.sh` erzeugt.
 
-### Aufräumen
+### Utility-/Config-Regressionstest
 
 ```bash
-make clean
+make -f Makefile.gpm2804 test-utils
 ```
 
-## Laufzeitabhängigkeiten
-
-Der Quellcode verwendet unter anderem:
-
-- SDL2
-- SDL2_mixer
-- SDL2_ttf
-- libcurl
-- libsystemd
-- libqrencode
-- `mpv` für Online-Streams
-- BlueZ / D-Bus für Bluetooth-Funktionen
-
-Die Docker-Builds sammeln die für das Player-Binary benötigten dynamischen Bibliotheken in das jeweilige Distributionsverzeichnis ein.
+Der Test prüft `util_trim()`, sichere String-/Pfadfunktionen und das gemeinsame Aktualisieren von INI-Sektionen.
 
 ## Konfiguration
 
-Die Datei `config.ini` liegt normalerweise neben dem Player-Binary. Falls sie fehlt, erzeugt der Player eine Grundkonfiguration. Die lokale `config.ini` wird bewusst **nicht** in Git versioniert, da sie gerätebezogene Pfade sowie Zertifikats-/Schlüsselparameter enthalten kann. Als Vorlage dient `config.ini.example`.
+Die Datei `config.ini` liegt normalerweise neben dem Player-Binary. Falls sie fehlt, erzeugt der Player eine Grundkonfiguration. Die lokale `config.ini` wird bewusst **nicht** in Git versioniert, weil sie gerätebezogene Pfade sowie Zertifikats-/Schlüsselparameter enthalten kann. Als Vorlage dient `config.ini.example`.
 
 ### Speicherpfade
 
@@ -131,7 +112,7 @@ led_gpio=-1
 led_gpio_mode=auto
 ```
 
-`-1` mit `auto` aktiviert die automatische GPIO-Erkennung.
+`-1` mit `auto` aktiviert die automatische GPIO-Erkennung. Das Speichern der LED-Konfiguration verwendet ab 0.3.52 den gemeinsamen atomischen Config-Writer.
 
 ### Wiedergabe
 
@@ -140,7 +121,7 @@ led_gpio_mode=auto
 repeat_book=0
 ```
 
-Weitere Wiedergabeoptionen werden vom Player ebenfalls persistent verwaltet.
+**Nur `repeat_book` ("Hörspielende") ist persistent.** `shutdown_after_tracks` und `shutdown_at_book_end` sind bewusst reine Session-Einstellungen und werden beim Programmstart auf Aus/0 zurückgesetzt, auch wenn eine ältere `config.ini` noch entsprechende Werte enthält.
 
 ### Downloads
 
@@ -157,7 +138,7 @@ client_key=
 client_key_password=
 ```
 
-Downloads unterstützen HTTPS und optional Client-Zertifikate. Bestehende Dateien mit identischer bekannter Servergröße können übersprungen werden. Downloads erfolgen über `.part`-Dateien und werden erst nach erfolgreichem Abschluss ersetzt.
+Downloads unterstützen HTTPS und optional Client-Zertifikate. Der An/Aus-Schalter wird über den gemeinsamen Config-Writer gespeichert. Downloads erfolgen über `.part`-Dateien und werden erst nach erfolgreichem Abschluss ersetzt.
 
 ### Streams
 
@@ -171,9 +152,9 @@ client_key=
 client_key_password=
 ```
 
-`xml_url` kann eine lokale Datei oder eine HTTP-/HTTPS-Quelle sein. Der Streamparser verarbeitet Stationseinträge mit Informationen wie Name, URL, `url_resolved`, Codec, Bitrate, HLS, Favicon, Tags und `stationuuid`.
+`xml_url` kann eine lokale Datei oder eine HTTP-/HTTPS-Quelle sein. Netzwerkzugriffe sind auf HTTP/HTTPS beschränkt. Dynamische Netzwerk-Allokationen sind gegen unbeschränktes Wachstum abgesichert; die aktuelle Grenze ist für große Radio-Browser-Listen ausgelegt und wurde mit einer etwa 6-MB-XML mit rund 6000 Stationen getestet.
 
-Favoriten werden anhand der `stationuuid` gespeichert. Die eigentliche Stream-Wiedergabe läuft über `mpv` und einen lokalen IPC-Socket.
+Favoriten werden anhand der `stationuuid` gespeichert. Favoriten- und Zertifikatseinstellungen verwenden ab 0.3.52 den gemeinsamen Config-Writer. Die eigentliche Stream-Wiedergabe läuft über `mpv` und einen lokalen IPC-Socket.
 
 ### Controller
 
@@ -185,151 +166,52 @@ profile=r36s
 dpad_mode=buttons
 ```
 
-Für andere Geräte kann ein Custom-Profil verwendet werden, zum Beispiel:
+Für andere Geräte kann `profile=custom` mit eigener Button-/Axis-Belegung verwendet werden. Nicht vorhandene Tasten können mit `-1` deaktiviert werden.
 
-```ini
-[input]
-profile=custom
-dpad_mode=axis
-dpad_x_axis=0
-dpad_y_axis=1
-dpad_deadzone=16000
+## Persistenz und Robustheit
 
-a=2
-b=1
-x=3
-y=0
-l1=4
-r1=-1
-l2=-1
-r2=-1
-start=9
-select=8
-```
+Resume-/Nutzungsdaten werden atomar über temporäre Datei plus `rename()` gespeichert. Der Bibliotheksscan verwaltet Unterverzeichnisse dynamisch und hält große Verzeichnislisten nicht pro Rekursionsebene auf dem Stack.
 
-Nicht vorhandene Tasten können mit `-1` deaktiviert werden.
+Ab 0.3.52 steht mit `config_update.c/.h` eine gemeinsame atomische Schreibschicht für INI-Sektionen zur Verfügung. Bluetooth-, Stream-, Favoriten-, Download- und LED-Einstellungen wurden schrittweise darauf umgestellt. Dadurch gibt es weniger voneinander abweichende Datei-Rewrite-Implementierungen.
 
-## Bedienung
+Bluetooth-MAC-Adressen werden vor Shell-basierten `bluetoothctl`-Aufrufen strikt validiert.
 
-Die genaue Belegung kann über das Input-Profil abweichen. Im R36S-Standard gelten unter anderem:
+## Getesteter Stand 0.3.52
 
-- D-Pad Hoch/Runter – Navigation in Listen
-- D-Pad Links – in vielen Listen zurück
-- D-Pad Rechts – in vielen Listen auswählen
-- Wiedergabe: Hoch/Runter – ±15 Sekunden
-- Wiedergabe: Links/Rechts – vorheriger/nächster Track
-- `SELECT` – Tastensperre
-- `MID` / evdev Keycode 708 – Display an/aus
-- Schultertasten – Seiten-/Sprungnavigation in Listen
+Auf Batocera/GPM2804 wurden während des Refactorings unter anderem erfolgreich geprüft:
 
-In Menüs unterstützt Hoch/Runter Key-Repeat beim Gedrückthalten.
+- Build `make gpm2804`
+- Utility-/Config-Regressionstest
+- Bluetooth inklusive Speichern von Einstellungen
+- Radio-Browser-Liste mit etwa 6000 Stationen
+- Stream-Favoriten inklusive Neustart
+- Stream-Zertifikatsmodus inklusive Neustart
+- Download An/Aus inklusive Neustart
+- persistentes `repeat_book`
+- nicht persistente Session-Werte `shutdown_after_tracks` und `shutdown_at_book_end`
+- System-Shutdown über Batocera
 
-## Lokale Hörspiele und Resume
-
-Beim Start werden die konfigurierten Speicherorte nach Hörspielen durchsucht. Wiedergabeposition und relevante Zustände werden persistent gespeichert. Das Speichern der Resume-/Nutzungsdaten erfolgt atomar über eine temporäre Datei und `rename()`, damit ein Abbruch während des Schreibens den letzten gültigen Stand nicht zerstört. Nach erneutem Öffnen kann ein Hörspiel an seiner letzten Position fortgesetzt werden.
-
-Der rekursive Bibliotheksscan hält große Unterverzeichnislisten nicht mehr pro Rekursionsebene auf dem Stack; Unterverzeichnisse werden dynamisch verwaltet. Symlinks werden weiterhin nicht als Verzeichnisse verfolgt.
-
-Wenn ein Bluetooth-Adapter vorhanden ist, können persistente Hörspiel-IDs in der Bibliothek als Suffix angezeigt werden, beispielsweise `Hörspielname [1001]`. Diese IDs werden für HFP/PBAP verwendet.
-
-## Online-Streams
-
-Der Menüpunkt für Online-Inhalte lädt die konfigurierte XML-Quelle. Die Wiedergabe erfolgt über `mpv`. Metadaten wie ICY-Name und ICY-Titel können im Player angezeigt werden.
-
-In der Streamliste:
-
-- `Y` – Favorit setzen/entfernen
-- `X` – zwischen allen Stationen und Favoriten wechseln
-
-Beim Start eines Streams wird lokale Wiedergabe pausiert, damit nicht zwei Audioquellen gleichzeitig gegeneinander antreten.
-
-## Bluetooth, AVRCP und MPRIS
-
-Der Player enthält eine MPRIS2-Bridge und BlueZ-Media-Anbindung.
-
-- MPRIS-Service: `org.mpris.MediaPlayer2.HoerspielPlayer`
-- BlueZ-Adapter werden zur Laufzeit erkannt
-- Bluetooth-Hotplug wird berücksichtigt
-- AVRCP-/MPRIS-Kommandos können Play, Pause, Next und Previous steuern
-- ein separates `mpris-proxy` ist für die integrierte Player-Brücke nicht vorgesehen
-
-USB-/Headset-Mediatasten werden zusätzlich über Linux evdev verarbeitet. Getrennte Play- und Pause-Tasten bleiben getrennte Aktionen; `KEY_PLAYPAUSE` arbeitet als Toggle.
-
-## HFP und PBAP
-
-### HFP
-
-Der Player lauscht auf einem Unix-Datagram-Socket für gespiegelte HFP-Wählbefehle. Ein Kommando wie `DIAL 1001` kann einer Hörspiel-ID bzw. einer Playeraktion zugeordnet werden.
-
-Die aktuelle Testbeschreibung steht in [HFP_TEST.md](HFP_TEST.md).
-
-### PBAP
-
-Nach dem Bibliotheksscan kann der Player für Hörspiele vCards unter
-
-```text
-$HOME/phonebook/telecom/pb/
-```
-
-erzeugen. Die persistente Hörspiel-ID wird als Telefonnummer verwendet. Für die vorgesehene BlueZ-PBAP-Nutzung muss `obexd` mit einem passenden Phonebook-Backend betrieben werden.
-
-Details stehen in [PBAP_TEST.md](PBAP_TEST.md).
-
-## Akku, Display und Timer
-
-Der Player liest Akku- und Ladeinformationen aus Linux-Power-Supply-Schnittstellen. Wenn möglich, wird aus Ladestand und Strom-/Energiewerten eine Laufzeit bzw. Ladezeit bis 100 % geschätzt. Fehlende Kernelwerte werden durch Fallback-Schätzungen abgefangen.
-
-Unterstützt werden außerdem:
-
-- Display-Inaktivitätstimer
-- Idle-Timer
-- Sleeptimer
-- persistente Lautstärke und UI-Einstellungen
-- einstellbare Menüschriftgröße
-- Tastensperre
-- optionale LED-Steuerung
-
-Während aktiver Downloads wird der Idle-Timer entsprechend behandelt, damit ein längerer Download nicht versehentlich als Benutzerinaktivität gewertet wird.
-
-## Diagnose
-
-Das Projekt enthält Diagnosefunktionen für die Entwicklung auf realer Hardware:
-
-- integriertes Programm-Log
-- Systeminformationen
-- Button-Debug
-- Anzeige unbekannter evdev-Keycodes bei geeigneten Media-Geräten
-- Bluetooth-/MPRIS-Statusmeldungen
-
-Diese Funktionen sind insbesondere beim Portieren auf neue Controller und bei BlueZ-/Media-Problemen hilfreich.
+Der R36S-Build wird weiterhin gepflegt; die LED-Konfigurationsänderung aus 0.3.52 konnte in dieser Refactoring-Runde noch nicht auf echter R36S-Hardware getestet werden.
 
 ## Entwicklungsworkflow
 
-Für dieses Projekt gilt:
+Größere Änderungen erfolgen auf Feature-/Refactoring-Branches. Der Branch wird gebaut und auf Hardware getestet, anschließend per Pull Request nach `main` übernommen. `main` bleibt der stabile Referenzstand.
 
-1. `main` ist der führende Stand.
-2. Vor Arbeitsbeginn `git pull --ff-only origin main`.
-3. Funktionierende Zwischenstände regelmäßig committen und pushen.
-4. Größere/riskante Änderungen auf Feature-Branches durchführen.
-5. ZIP-Dateien nur als Backup verwenden, nicht als primäre Versionsverwaltung.
-6. Stabile Versionen nach Möglichkeit taggen.
-
-Die vollständigen Regeln und Wiederherstellungsschritte stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
+Die vollständigen Regeln stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
 ## Weitere Dokumentation
 
 - [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md) – Git-/Entwicklungsworkflow und Wiederaufnahme nach Kontextverlust
 - [HFP_TEST.md](HFP_TEST.md) – HFP-Dial-Test und lokaler Socket-Test
 - [PBAP_TEST.md](PBAP_TEST.md) – PBAP-vCard-Test
-- [TEST_0.2.27.md](TEST_0.2.27.md) – ältere Hardware-/Regressionstests
 - `CHANGELOG_*.md` – versionsbezogene Änderungsnotizen
 - `RELEASE_*.md` – Release-spezifische Hinweise
 
 ## Versionshistorie
 
-Die README beschreibt bewusst den **aktuellen** Projektstand und ist kein chronologisches Changelog. Ältere Entwicklungsschritte bleiben über Git-Historie, Changelog-, Release- und Testdateien nachvollziehbar.
+Die README beschreibt den **aktuellen** Projektstand und ist kein chronologisches Changelog. Ältere Entwicklungsschritte bleiben über die Git-Historie sowie Changelog-, Release- und Testdateien nachvollziehbar.
 
-Aktuelle Version laut `config.h`: **0.3.50**.
+Aktuelle Version laut `config.h`: **0.3.52**.
 
 ## Lizenz und Kontakt
 

@@ -3,13 +3,20 @@ PKG_CONFIG := pkg-config
 
 CPPFLAGS := -DBUILD_BATOCERA
 CFLAGS := -O2 -Wall -Wextra
-LDFLAGS := -Wl,--wrap=system
+LDFLAGS := -Wl,--wrap=system -Wl,--wrap=load_playback_config -Wl,--wrap=save_playback_config
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 
 SOURCES := \
 	main.c \
-	platform_system.c \
+	app_shutdown.c \
+	util.c \
+	config_update.c \
+	download_config_save.c \
+	playback_runtime.c \
+	hardware_config_save.c \
+	stream_config.c \
+	stream_favorites.c \
 	state.c \
 	backlight.c \
 	battery.c \
@@ -46,12 +53,20 @@ SOURCES := \
 
 OBJECTS := $(SOURCES:.c=.o)
 
-.PHONY: all clean
+.PHONY: all clean test-utils
 
 all: hoerspiel_player
 
 hoerspiel_player: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PKG_LIBS)
+
+test-utils:
+	$(CC) $(CFLAGS) -I. tests/test_util_config.c util.c config_update.c -o /tmp/hoerspiel-test-util-config
+	/tmp/hoerspiel-test-util-config
+	rm -f /tmp/hoerspiel-test-util-config
+
+led.o: led.c hardware_config_save.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include hardware_config_save.h -Dset_led_gpio_config=hardware_config_save_led_gpio -c $< -o $@
 
 streaming.o: streaming.c network_limits.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@

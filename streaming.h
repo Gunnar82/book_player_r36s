@@ -29,7 +29,6 @@ extern char stream_client_key[STREAM_CERT_PATH_LEN];
 extern char stream_client_key_password[256];
 
 void streaming_load_config(void);
-int streaming_save_cert_mode(void);
 const char *streaming_cert_mode_name(void);
 
 int streaming_fetch_xml(StreamEntry **entries,int *count,char *err,size_t err_size);

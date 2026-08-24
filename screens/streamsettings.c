@@ -1,5 +1,6 @@
 #include "streamsettings.h"
 #include "../streaming.h"
+#include "../stream_config.h"
 #include "../ui.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +80,7 @@ static void change_cert_mode(int direction){
     if(direction<0)stream_cert_mode=(stream_cert_mode+2)%3;
     else stream_cert_mode=(stream_cert_mode+1)%3;
 
-    if(streaming_save_cert_mode()!=0){
+    if(stream_config_save_cert_mode()!=0){
         stream_cert_mode=old;
         set_message("config.ini konnte nicht gespeichert werden");
     }else{
