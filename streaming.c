@@ -1,5 +1,6 @@
 #include "streaming.h"
 #include "storage.h"
+#include "util.h"
 #include <strings.h>
 #include <curl/curl.h>
 #include <ctype.h>
@@ -37,11 +38,6 @@ static size_t write_cb(void *ptr,size_t size,size_t nmemb,void *userdata){
     char *p=realloc(b->data,b->size+n+1); if(!p)return 0;
     b->data=p; memcpy(b->data+b->size,ptr,n); b->size+=n; b->data[b->size]='\0'; return n;
 }
-static void trim(char *s){
-    char *p=s; while(*p&&isspace((unsigned char)*p))p++;
-    if(p!=s)memmove(s,p,strlen(p)+1);
-    size_t n=strlen(s); while(n&&isspace((unsigned char)s[n-1]))s[--n]='\0';
-}
 static int xml_entity_decode(const char *src,char *dst,size_t dst_size){
     size_t o=0;
     for(size_t i=0;src[i]&&o+1<dst_size;){
@@ -73,7 +69,7 @@ static int attr(const char *station,const char *name,char *out,size_t out_size){
     tmp[n]='\0';
     xml_entity_decode(tmp,out,out_size);
     free(tmp);
-    trim(out);
+    util_trim(out);
     return 1;
 }
 
@@ -131,7 +127,7 @@ int streaming_save_cert_mode(void){
     if(data){
         char *save=NULL;
         for(char *line=strtok_r(data,"\n",&save);line;line=strtok_r(NULL,"\n",&save)){
-            char check[512];snprintf(check,sizeof(check),"%s",line);trim(check);
+            char check[512];snprintf(check,sizeof(check),"%s",line);util_trim(check);
             if(check[0]=='['){
                 if(in_streams&&!wrote){fprintf(out,"client_cert_mode=%s\n",streaming_cert_mode_name());wrote=1;}
                 in_streams=!strcmp(check,"[streams]"); if(in_streams)have_streams=1;
@@ -181,7 +177,7 @@ static int favorites_read_config(char ***items_out,int *count_out){
         int in_streams=0;
 
         while(fgets(line,sizeof(line),fp)){
-            trim(line);
+            util_trim(line);
 
             if(line[0]=='['){
                 in_streams=!strcmp(line,"[streams]");
@@ -196,14 +192,14 @@ static int favorites_read_config(char ***items_out,int *count_out){
             *eq='\0';
             char *key=line;
             char *value=eq+1;
-            trim(key);
-            trim(value);
+            util_trim(key);
+            util_trim(value);
 
             if(strcmp(key,FAVORITES_KEY))continue;
 
             char *save=NULL;
             for(char *tok=strtok_r(value,",",&save);tok;tok=strtok_r(NULL,",",&save)){
-                trim(tok);
+                util_trim(tok);
                 if(!tok[0])continue;
 
                 char **grown=realloc(items,(size_t)(count+1)*sizeof(*items));
@@ -262,7 +258,7 @@ static int favorites_write_cache(void){
         while(fgets(line,sizeof(line),in)){
             char check[4096];
             snprintf(check,sizeof(check),"%s",line);
-            trim(check);
+            util_trim(check);
 
             if(check[0]=='['){
                 if(in_streams && !key_written){
@@ -283,7 +279,7 @@ static int favorites_write_cache(void){
                 char *eq=strchr(check,'=');
                 if(eq){
                     *eq='\0';
-                    trim(check);
+                    util_trim(check);
 
                     if(!strcmp(check,FAVORITES_KEY)){
                         if(!key_written){
@@ -406,7 +402,7 @@ static void streaming_ensure_config_section(void){
     for(int i=0;i<line_count;i++){
         char check[4096];
         snprintf(check,sizeof(check),"%s",lines[i]);
-        trim(check);
+        util_trim(check);
 
         if(check[0]=='['){
             if(section_start>=0){
@@ -422,7 +418,7 @@ static void streaming_ensure_config_section(void){
             char *eq=strchr(check,'=');
             if(!eq)continue;
             *eq='\0';
-            trim(check);
+            util_trim(check);
 
             if(!strcmp(check,"xml_url"))have_xml=1;
             else if(!strcmp(check,"client_cert_mode"))have_mode=1;
@@ -504,7 +500,7 @@ void streaming_load_config(void){
     FILE *fp=fopen(config_path,"r"); if(!fp)return;
     char line[4096],section[64]="";
     while(fgets(line,sizeof(line),fp)){
-        trim(line); if(!line[0]||line[0]=='#'||line[0]==';')continue;
+        util_trim(line); if(!line[0]||line[0]=='#'||line[0]==';')continue;
         if(line[0]=='['){
             char *e=strchr(line,']');
             if(e){
@@ -516,7 +512,7 @@ void streaming_load_config(void){
             continue;
         }
         if(strcmp(section,"streams"))continue;
-        char *eq=strchr(line,'='); if(!eq)continue; *eq++='\0'; trim(line);trim(eq);
+        char *eq=strchr(line,'='); if(!eq)continue; *eq++='\0'; util_trim(line);util_trim(eq);
         if(!strcmp(line,"xml_url"))snprintf(stream_xml_url,sizeof(stream_xml_url),"%s",eq);
         else if(!strcmp(line,"client_cert_mode")){
             if(!strcasecmp(eq,"downloads"))stream_cert_mode=STREAM_CERT_DOWNLOADS;
@@ -724,7 +720,7 @@ static int metadata_parse_line(const char *line,char *station,size_t station_siz
 
     char buf[4096];
     snprintf(buf,sizeof(buf),"%s",line);
-    trim(buf);
+    util_trim(buf);
     if(!buf[0])return 0;
 
     /* FFmpeg schreibt ICY-Metadaten typischerweise als:
@@ -740,8 +736,8 @@ static int metadata_parse_line(const char *line,char *station,size_t station_siz
     *sep='\0';
     char *key=buf;
     char *value=sep+1;
-    trim(key);
-    trim(value);
+    util_trim(key);
+    util_trim(value);
 
     /* optionale einfache Quotes entfernen */
     size_t vl=strlen(value);
@@ -749,7 +745,7 @@ static int metadata_parse_line(const char *line,char *station,size_t station_siz
                  (value[0]=='"'  && value[vl-1]=='"'))){
         value[vl-1]='\0';
         value++;
-        trim(value);
+        util_trim(value);
     }
 
     if(!strcasecmp(key,"icy-name")){
@@ -778,7 +774,7 @@ static int read_ffmpeg_metadata(char *station,size_t station_size,
     while(fgets(line,sizeof(line),fp)){
         char raw[4096];
         snprintf(raw,sizeof(raw),"%s",line);
-        trim(raw);
+        util_trim(raw);
 
         metadata_parse_line(raw,station,station_size,title,title_size);
 
@@ -790,7 +786,7 @@ static int read_ffmpeg_metadata(char *station,size_t station_size,
         *sep='\0';
         char *key=raw;
         char *value=sep+1;
-        trim(key); trim(value);
+        util_trim(key); util_trim(value);
 
         if(!strcasecmp(key,"icy-br") && br && br_size)
             snprintf(br,br_size,"%s",value);
