@@ -53,6 +53,12 @@ all: hoerspiel_player
 hoerspiel_player: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PKG_LIBS)
 
+streaming.o: streaming.c network_limits.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@
+
+download.o: download.c network_limits.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@
+
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -c $< -o $@
 
