@@ -29,7 +29,15 @@ static void trim(char *s)
     size_t n=strlen(s);while(n&&isspace((unsigned char)s[n-1]))s[--n]='\0';
 }
 
-
+static int bluetooth_mac_valid(const char *mac)
+{
+    if(!mac||strlen(mac)!=17)return 0;
+    for(int i=0;i<17;i++){
+        if(i%3==2){if(mac[i]!=':')return 0;}
+        else if(!isxdigit((unsigned char)mac[i]))return 0;
+    }
+    return 1;
+}
 
 int bluetooth_service_available(void)
 {
@@ -92,7 +100,10 @@ void bluetooth_load_config(void)
         if(!in_section)continue;
         char *eq=strchr(line,'=');if(!eq)continue;*eq++='\0';trim(line);trim(eq);
         if(!strcmp(line,"autoconnect"))bluetooth_autoconnect=atoi(eq)?1:0;
-        else if(!strcmp(line,"device"))snprintf(bluetooth_device_mac,sizeof(bluetooth_device_mac),"%s",eq);
+        else if(!strcmp(line,"device")){
+            if(!eq[0]||bluetooth_mac_valid(eq))snprintf(bluetooth_device_mac,sizeof(bluetooth_device_mac),"%s",eq);
+            else app_logf("Bluetooth: ungueltige MAC in config.ini ignoriert");
+        }
     }
     fclose(fp);
 }
@@ -129,6 +140,7 @@ fail:
 
 static int device_info(const char *mac,char *name,size_t name_size,int *paired,int *trusted,int *connected)
 {
+    if(!bluetooth_mac_valid(mac))return -1;
     char cmd[256];snprintf(cmd,sizeof(cmd),"bluetoothctl info %s 2>/dev/null",mac);
     FILE *fp=popen(cmd,"r");if(!fp)return -1;
     char line[512];if(name&&name_size)name[0]='\0';if(paired)*paired=0;if(trusted)*trusted=0;if(connected)*connected=0;
@@ -152,6 +164,7 @@ int bluetooth_scan_paired_trusted(BluetoothDevice *devices,int max_devices)
     while(count<max_devices&&fgets(line,sizeof(line),fp)){
         char mac[18]="",listed_name[128]="";
         if(sscanf(line,"Device %17s %127[^\n]",mac,listed_name)<1)continue;
+        if(!bluetooth_mac_valid(mac))continue;
         int paired=0,trusted=0,connected=0;char name[128]="";
         if(device_info(mac,name,sizeof(name),&paired,&trusted,&connected)!=0)continue;
         if(!paired||!trusted)continue;
@@ -172,7 +185,7 @@ static void mac_to_bluez_path(const char *mac,char *path,size_t path_size)
 int bluetooth_connect_device(const char *mac)
 {
     if(!bluetooth_adapter_powered()){app_logf("Bluetooth: Adapter ausgeschaltet oder nicht verfuegbar");return -1;}
-    if(!mac||strlen(mac)!=17)return -1;
+    if(!bluetooth_mac_valid(mac))return -1;
 
     int paired=0,trusted=0,connected=0;
     if(device_info(mac,NULL,0,&paired,&trusted,&connected)!=0){
@@ -245,7 +258,7 @@ int bluetooth_connect_device(const char *mac)
 void bluetooth_autoconnect_start(void)
 {
     if(!bluetooth_adapter_powered())return;
-    if(!bluetooth_autoconnect||strlen(bluetooth_device_mac)!=17)return;
+    if(!bluetooth_autoconnect||!bluetooth_mac_valid(bluetooth_device_mac))return;
     pid_t pid=fork();
     if(pid<0){app_logf("Bluetooth Autoconnect: fork fehlgeschlagen");return;}
     if(pid==0){
@@ -260,7 +273,6 @@ void bluetooth_autoconnect_start(void)
     app_logf("Bluetooth Autoconnect: %s",bluetooth_device_mac);
 }
 
-
 void bluetooth_log_status(void)
 {
     int present=bluetooth_adapter_present();
@@ -272,7 +284,6 @@ void bluetooth_log_status(void)
              service?"ja":"nein",
              powered?"ja":"nein");
 }
-
 
 void bluetooth_log_if_changed(void)
 {
