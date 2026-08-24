@@ -4,3 +4,6 @@ hoerspiel_player
 lib/
 *.log
 .hoerspiel_player_state
+config.ini
+dist-batocera/
+dist-r36s/
