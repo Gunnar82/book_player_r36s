@@ -10,6 +10,7 @@ PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsys
 SOURCES := \
 	main.c \
 	platform_system.c \
+	util.c \
 	state.c \
 	backlight.c \
 	battery.c \
