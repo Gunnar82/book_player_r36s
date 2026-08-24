@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "state.h"
 #include "config.h"
@@ -21,7 +22,6 @@ int menu_font_size = 1;
 unsigned long long usage_app_starts = 0;
 unsigned long long usage_runtime_seconds = 0;
 unsigned long long usage_playback_seconds = 0;
-
 
 static int copy_checked(char *dst,size_t dst_size,const char *src){
     if(!dst||dst_size==0)return -1;
@@ -98,7 +98,7 @@ void load_state(void)
         p->position = atof(b);
         p->last_played = d ? atoll(d) : 0;
         if (d) { char *e = strchr(d, '\t'); if (e) p->dial_id = (unsigned int)strtoul(e + 1, NULL, 10); }
-        (void)c; /* legacy volume column: kept readable, no longer authoritative */
+        (void)c;
     }
     fclose(fp);
     int cv=volume,ci=idle_timer_minutes,cd=display_timeout_seconds,cf=menu_font_size;
@@ -119,14 +119,30 @@ void load_state(void)
 
 void save_state(void)
 {
-    FILE *fp = fopen(progress_file, "w");
+    char tmp_file[sizeof(progress_file) + 8];
+    snprintf(tmp_file, sizeof(tmp_file), "%s.tmp", progress_file);
+
+    FILE *fp = fopen(tmp_file, "w");
     if (!fp) return;
-    fprintf(fp, "@usage\t%llu\t%llu\t%llu\n", usage_app_starts, usage_runtime_seconds, usage_playback_seconds);
-    for (int i = 0; i < progress_count; i++) {
-        fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\t%u\n", progress[i].path, progress[i].track,
-                progress[i].position, 0, progress[i].last_played, progress[i].dial_id);
+
+    int ok = fprintf(fp, "@usage\t%llu\t%llu\t%llu\n", usage_app_starts, usage_runtime_seconds, usage_playback_seconds) >= 0;
+    for (int i = 0; ok && i < progress_count; i++) {
+        if (fprintf(fp, "%s\t%d\t%.3f\t%d\t%lld\t%u\n", progress[i].path, progress[i].track,
+                    progress[i].position, 0, progress[i].last_played, progress[i].dial_id) < 0)
+            ok = 0;
     }
-    fclose(fp);
+
+    if (ok && fflush(fp) != 0) ok = 0;
+    if (ok && fsync(fileno(fp)) != 0) ok = 0;
+    if (fclose(fp) != 0) ok = 0;
+
+    if (ok) {
+        if (rename(tmp_file, progress_file) != 0)
+            unlink(tmp_file);
+    } else {
+        unlink(tmp_file);
+    }
+
     save_ui_config(volume,idle_timer_minutes,display_timeout_seconds,menu_font_size);
 }
 
