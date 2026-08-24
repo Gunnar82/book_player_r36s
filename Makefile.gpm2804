@@ -1,13 +1,15 @@
 CC := gcc
 PKG_CONFIG := pkg-config
 
-CPPFLAGS := -DBUILD_BATOCERA -include batocera_system.h
+CPPFLAGS := -DBUILD_BATOCERA
 CFLAGS := -O2 -Wall -Wextra
+LDFLAGS := -Wl,--wrap=system
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 
 SOURCES := \
 	main.c \
+	platform_system.c \
 	state.c \
 	backlight.c \
 	battery.c \
@@ -49,7 +51,7 @@ OBJECTS := $(SOURCES:.c=.o)
 all: hoerspiel_player
 
 hoerspiel_player: $(OBJECTS)
-	$(CC) -o $@ $(OBJECTS) $(PKG_LIBS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PKG_LIBS)
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -c $< -o $@
