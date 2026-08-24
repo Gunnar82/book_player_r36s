@@ -3,6 +3,7 @@
 #include "../storage.h"
 #include "../state.h"
 #include "../ui.h"
+#include "../input_config.h"
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -138,6 +139,7 @@ static int progress_render(const char *name,int file_index,int file_count,long l
     SDL_Event e;
     while(SDL_PollEvent(&e)){
         if(e.type==SDL_QUIT)return 1;
+        if(!input_normalize_event(&e))continue;
         if(e.type==SDL_JOYBUTTONDOWN&&e.jbutton.button==BUTTON_B)return 1;
     }
 
