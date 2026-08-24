@@ -1,5 +1,6 @@
 #include "streams.h"
 #include "../streaming.h"
+#include "../stream_favorites.h"
 #include "../ui.h"
 #include "../state.h"
 #include "../systemstats.h"
@@ -17,19 +18,19 @@ static char last_selected_uuid[STREAM_UUID_LEN]="";
 static int total_favorites(void){
     int n=0;
     for(int i=0;i<count;i++)
-        if(streaming_favorite_is_set(entries[i].uuid))n++;
+        if(stream_favorite_is_set(entries[i].uuid))n++;
     return n;
 }
 
 
 static int visible_count(void){
     if(!favorites_only)return count;
-    int n=0;for(int i=0;i<count;i++)if(streaming_favorite_is_set(entries[i].uuid))n++;
+    int n=0;for(int i=0;i<count;i++)if(stream_favorite_is_set(entries[i].uuid))n++;
     return n;
 }
 static int actual_index(int vi){
     if(!favorites_only)return vi;
-    int n=0;for(int i=0;i<count;i++)if(streaming_favorite_is_set(entries[i].uuid)){if(n==vi)return i;n++;}
+    int n=0;for(int i=0;i<count;i++)if(stream_favorite_is_set(entries[i].uuid)){if(n==vi)return i;n++;}
     return -1;
 }
 
@@ -44,7 +45,7 @@ static int visible_index_for_uuid(const char *uuid){
     }
     int vi=0;
     for(int i=0;i<count;i++){
-        if(!streaming_favorite_is_set(entries[i].uuid))continue;
+        if(!stream_favorite_is_set(entries[i].uuid))continue;
         if(!strcmp(entries[i].uuid,uuid))return vi;
         vi++;
     }
@@ -132,7 +133,7 @@ void streams_handle_event(ScreenContext *c,const SDL_Event *e){
     if(b==BUTTON_Y&&n>0){
         int ai=actual_index(selection);
         if(ai>=0&&entries[ai].uuid[0]){
-            int r=streaming_favorite_toggle(entries[ai].uuid);
+            int r=stream_favorite_toggle(entries[ai].uuid);
             snprintf(status,sizeof(status),r>0?"Favorit gesetzt":"Favorit entfernt");
             clamp_selection();
         }else snprintf(status,sizeof(status),"Keine stationuuid vorhanden");
@@ -200,7 +201,7 @@ void streams_render(ScreenContext *c){
     for(int vi=start;vi<n&&vi<start+visible;vi++,y+=row){
         int ai=actual_index(vi);if(ai<0)continue;
         char label[STREAM_NAME_LEN+8];
-        snprintf(label,sizeof(label),"%s%s",streaming_favorite_is_set(entries[ai].uuid)?"* ":"",entries[ai].name);
+        snprintf(label,sizeof(label),"%s%s",stream_favorite_is_set(entries[ai].uuid)?"* ":"",entries[ai].name);
         draw_text(c->renderer,c->font,label,35,y,vi==selection?c->selected:c->white);
     }
     char info[256];snprintf(info,sizeof(info),"%d/%d  Y: Favorit  X: %s",selection+1,n,favorites_only?"Alle":"Favoriten");
