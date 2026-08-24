@@ -2,7 +2,7 @@
 
 Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist primär für den **R36S** entwickelt und enthält zusätzlich einen **Waveshare GPM2804 / Batocera**-Build.
 
-**Aktueller Stand: 0.3.49**
+**Aktueller Stand: 0.3.50**
 
 `main` ist die maßgebliche Quelle für den aktuellen Projektstand. Entwicklungs- und Sicherungsregeln stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
@@ -40,7 +40,7 @@ Hauptziel des Projekts. Der R36S-Build verwendet `BUILD_R36S`, die Standard-Cont
 
 ### Waveshare GPM2804 / Batocera
 
-Zusätzlich existiert ein Batocera-Build mit `BUILD_BATOCERA` und eigener Beispielbelegung für den Controller. Der Export enthält Binary, benötigte Laufzeitbibliotheken und einen Starter.
+Zusätzlich existiert ein Batocera-Build mit `BUILD_BATOCERA` und eigener Beispielbelegung für den Controller. Der Export enthält Binary, benötigte Laufzeitbibliotheken und einen Starter. Der System-Shutdown wird im Batocera-Build auf `/sbin/shutdown -P -h now` abgebildet; der R36S behält seinen logind-/D-Bus-Pfad.
 
 ## Projektstruktur
 
@@ -61,6 +61,7 @@ Wichtige Dateien und Bereiche:
 - `battery.c/.h`, `battery_bluez.c/.h` – Geräte-/Bluetooth-Akku
 - `backlight.c/.h` – Display-Hintergrundbeleuchtung
 - `input_config.c/.h` – Controllerprofile und Eingaben
+- `platform_system.c` – Batocera-spezifische Umleitung des Shutdown-Aufrufs
 - `screens/` – Menü-, Player-, Download-, Stream-, Bluetooth- und Diagnoseansichten
 - `Makefile` – Docker-Buildziele
 - `Makefile.r36s` – nativer R36S-Build im Container
@@ -109,7 +110,7 @@ Die Docker-Builds sammeln die für das Player-Binary benötigten dynamischen Bib
 
 ## Konfiguration
 
-Die Datei `config.ini` liegt normalerweise neben dem Player-Binary. Falls sie fehlt, erzeugt der Player eine Grundkonfiguration.
+Die Datei `config.ini` liegt normalerweise neben dem Player-Binary. Falls sie fehlt, erzeugt der Player eine Grundkonfiguration. Die lokale `config.ini` wird bewusst **nicht** in Git versioniert, da sie gerätebezogene Pfade sowie Zertifikats-/Schlüsselparameter enthalten kann. Als Vorlage dient `config.ini.example`.
 
 ### Speicherpfade
 
@@ -225,7 +226,9 @@ In Menüs unterstützt Hoch/Runter Key-Repeat beim Gedrückthalten.
 
 ## Lokale Hörspiele und Resume
 
-Beim Start werden die konfigurierten Speicherorte nach Hörspielen durchsucht. Wiedergabeposition und relevante Zustände werden persistent gespeichert. Nach erneutem Öffnen kann ein Hörspiel an seiner letzten Position fortgesetzt werden.
+Beim Start werden die konfigurierten Speicherorte nach Hörspielen durchsucht. Wiedergabeposition und relevante Zustände werden persistent gespeichert. Das Speichern der Resume-/Nutzungsdaten erfolgt atomar über eine temporäre Datei und `rename()`, damit ein Abbruch während des Schreibens den letzten gültigen Stand nicht zerstört. Nach erneutem Öffnen kann ein Hörspiel an seiner letzten Position fortgesetzt werden.
+
+Der rekursive Bibliotheksscan hält große Unterverzeichnislisten nicht mehr pro Rekursionsebene auf dem Stack; Unterverzeichnisse werden dynamisch verwaltet. Symlinks werden weiterhin nicht als Verzeichnisse verfolgt.
 
 Wenn ein Bluetooth-Adapter vorhanden ist, können persistente Hörspiel-IDs in der Bibliothek als Suffix angezeigt werden, beispielsweise `Hörspielname [1001]`. Diese IDs werden für HFP/PBAP verwendet.
 
@@ -326,7 +329,7 @@ Die vollständigen Regeln und Wiederherstellungsschritte stehen in [PROJECT_WORK
 
 Die README beschreibt bewusst den **aktuellen** Projektstand und ist kein chronologisches Changelog. Ältere Entwicklungsschritte bleiben über Git-Historie, Changelog-, Release- und Testdateien nachvollziehbar.
 
-Aktuelle Version laut `config.h`: **0.3.49**.
+Aktuelle Version laut `config.h`: **0.3.50**.
 
 ## Lizenz und Kontakt
 
