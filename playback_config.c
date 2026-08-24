@@ -4,9 +4,7 @@
 
 #include <stdio.h>
 
-int playback_config_save(int repeat_book,
-                         int shutdown_after_tracks,
-                         int shutdown_at_book_end)
+int playback_config_save_current(void)
 {
     char repeat_value[16];
     char tracks_value[32];
