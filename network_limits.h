@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdlib.h>
+#include <curl/curl.h>
 
 #define NETWORK_MAX_DYNAMIC_ALLOCATION (16U * 1024U * 1024U)
 
@@ -12,6 +13,15 @@ static inline void *network_limited_realloc(void *ptr,size_t size)
     return realloc(ptr,size);
 }
 
+static inline CURLcode network_hardened_curl_perform(CURL *curl)
+{
+    if(!curl)return CURLE_BAD_FUNCTION_ARGUMENT;
+    curl_easy_setopt(curl,CURLOPT_PROTOCOLS_STR,"http,https");
+    curl_easy_setopt(curl,CURLOPT_REDIR_PROTOCOLS_STR,"http,https");
+    return curl_easy_perform(curl);
+}
+
 #define realloc(ptr,size) network_limited_realloc((ptr),(size))
+#define curl_easy_perform(curl) network_hardened_curl_perform((curl))
 
 #endif
