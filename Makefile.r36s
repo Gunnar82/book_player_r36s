@@ -5,14 +5,14 @@ CPPFLAGS := -DBUILD_R36S
 CFLAGS := -O2 -Wall -Wextra
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
-LDFLAGS := -Wl,-rpath,'$$ORIGIN/lib'
+LDFLAGS := -Wl,-rpath,'$$ORIGIN/lib' -Wl,--wrap=load_playback_config -Wl,--wrap=save_playback_config
 
 SOURCES := \
 	main.c \
 	util.c \
 	config_update.c \
 	download_config_save.c \
-	playback_config.c \
+	playback_runtime.c \
 	stream_config.c \
 	stream_favorites.c \
 	state.c \
@@ -57,9 +57,6 @@ all: hoerspiel_player
 
 hoerspiel_player: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PKG_LIBS)
-
-screens/systeminfo.o: screens/systeminfo.c playback_config.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include playback_config.h -Dsave_playback_config=playback_config_save_current -c $< -o $@
 
 streaming.o: streaming.c network_limits.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@
