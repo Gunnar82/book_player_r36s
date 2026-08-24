@@ -2,6 +2,7 @@
 #include "storage.h"
 #include "app_log.h"
 #include "util.h"
+#include "config_update.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -103,32 +104,13 @@ void bluetooth_load_config(void)
 
 int bluetooth_save_config(void)
 {
-    const char *path=get_storage_config_path();
-    FILE *fp=fopen(path,"r");
-    char **lines=NULL;size_t count=0,cap=0;char line[1200];
-    if(fp){while(fgets(line,sizeof(line),fp)){if(count==cap){size_t nc=cap?cap*2:32;char **t=realloc(lines,nc*sizeof(*t));if(!t){fclose(fp);goto fail;}lines=t;cap=nc;}lines[count]=strdup(line);if(!lines[count]){fclose(fp);goto fail;}count++;}fclose(fp);}
-    fp=fopen(path,"w");if(!fp)goto fail;
-    int in=0,have=0,wrote_auto=0,wrote_dev=0;
-    for(size_t i=0;i<count;i++){
-        char check[1200];snprintf(check,sizeof(check),"%s",lines[i]);util_trim(check);
-        if(check[0]=='['){
-            if(in){if(!wrote_auto)fprintf(fp,"autoconnect=%d\n",bluetooth_autoconnect);if(!wrote_dev)fprintf(fp,"device=%s\n",bluetooth_device_mac);}
-            in=!strcmp(check,"[bluetooth]");if(in)have=1;fputs(lines[i],fp);continue;
-        }
-        if(in&&!strncmp(check,"autoconnect=",12)){fprintf(fp,"autoconnect=%d\n",bluetooth_autoconnect);wrote_auto=1;continue;}
-        if(in&&!strncmp(check,"device=",7)){fprintf(fp,"device=%s\n",bluetooth_device_mac);wrote_dev=1;continue;}
-        fputs(lines[i],fp);
-    }
-    if(in){if(!wrote_auto)fprintf(fp,"autoconnect=%d\n",bluetooth_autoconnect);if(!wrote_dev)fprintf(fp,"device=%s\n",bluetooth_device_mac);}
-    else if(!have){if(count&&lines[count-1][0]&&lines[count-1][strlen(lines[count-1])-1]!='\n')fputc('\n',fp);fprintf(fp,"\n[bluetooth]\nautoconnect=%d\ndevice=%s\n",bluetooth_autoconnect,bluetooth_device_mac);}
-    if(fflush(fp)!=0||fsync(fileno(fp))!=0){fclose(fp);goto fail;}if(fclose(fp)!=0)goto fail;
-    for(size_t i=0;i<count;i++)free(lines[i]);
-    free(lines);
-    return 0;
-fail:
-    for(size_t i=0;i<count;i++)free(lines[i]);
-    free(lines);
-    return -1;
+    char autoconnect[2];
+    snprintf(autoconnect,sizeof(autoconnect),"%d",bluetooth_autoconnect?1:0);
+    const ConfigUpdate updates[]={
+        {"autoconnect",autoconnect},
+        {"device",bluetooth_device_mac}
+    };
+    return config_update_section(get_storage_config_path(),"bluetooth",updates,2);
 }
 
 static int device_info(const char *mac,char *name,size_t name_size,int *paired,int *trusted,int *connected)
