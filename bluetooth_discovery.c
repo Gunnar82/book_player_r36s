@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <systemd/sd-bus.h>
 
@@ -127,69 +128,45 @@ int bluetooth_discovery_active(void)
     return discovery_active;
 }
 
-static int parse_device_properties(sd_bus_message *m,BluetoothDevice *device)
+static int read_device(sd_bus *bus,const char *path,BluetoothDevice *device)
 {
-    int r;
-    char address[18]="";
-    char alias[128]="";
-    char name[128]="";
+    sd_bus_error error=SD_BUS_ERROR_NULL;
+    char *address=NULL;
+    char *alias=NULL;
+    char *name=NULL;
     int paired=0;
     int connected=0;
 
-    r=sd_bus_message_enter_container(m,'a',"{sv}");
-    if(r<0)return r;
+    int r=sd_bus_get_property_string(bus,"org.bluez",path,"org.bluez.Device1","Address",&error,&address);
+    if(r<0)goto out;
+    if(!mac_valid(address)){r=0;goto out;}
 
-    while((r=sd_bus_message_enter_container(m,'e',"sv"))>0){
-        const char *key=NULL;
-        const char *sig=NULL;
-        r=sd_bus_message_read_basic(m,'s',&key);
-        if(r<0)return r;
-        r=sd_bus_message_peek_type(m,NULL,&sig);
-        if(r<0)return r;
-        r=sd_bus_message_enter_container(m,'v',sig);
-        if(r<0)return r;
-
-        if(key&&!strcmp(key,"Address")&&sig&&sig[0]=='s'){
-            const char *v=NULL;
-            r=sd_bus_message_read_basic(m,'s',&v);
-            if(r<0)return r;
-            if(v)snprintf(address,sizeof(address),"%s",v);
-        }else if(key&&!strcmp(key,"Alias")&&sig&&sig[0]=='s'){
-            const char *v=NULL;
-            r=sd_bus_message_read_basic(m,'s',&v);
-            if(r<0)return r;
-            if(v)snprintf(alias,sizeof(alias),"%s",v);
-        }else if(key&&!strcmp(key,"Name")&&sig&&sig[0]=='s'){
-            const char *v=NULL;
-            r=sd_bus_message_read_basic(m,'s',&v);
-            if(r<0)return r;
-            if(v)snprintf(name,sizeof(name),"%s",v);
-        }else if(key&&!strcmp(key,"Paired")&&sig&&sig[0]=='b'){
-            r=sd_bus_message_read_basic(m,'b',&paired);
-            if(r<0)return r;
-        }else if(key&&!strcmp(key,"Connected")&&sig&&sig[0]=='b'){
-            r=sd_bus_message_read_basic(m,'b',&connected);
-            if(r<0)return r;
-        }else{
-            r=sd_bus_message_skip(m,sig);
-            if(r<0)return r;
-        }
-
-        r=sd_bus_message_exit_container(m);
-        if(r<0)return r;
-        r=sd_bus_message_exit_container(m);
-        if(r<0)return r;
+    sd_bus_error_free(&error);
+    r=sd_bus_get_property_string(bus,"org.bluez",path,"org.bluez.Device1","Alias",&error,&alias);
+    if(r<0){
+        sd_bus_error_free(&error);
+        (void)sd_bus_get_property_string(bus,"org.bluez",path,"org.bluez.Device1","Name",&error,&name);
     }
-    if(r<0)return r;
-    r=sd_bus_message_exit_container(m);
-    if(r<0)return r;
 
-    if(!mac_valid(address))return 0;
+    sd_bus_error_free(&error);
+    (void)sd_bus_get_property_trivial(bus,"org.bluez",path,"org.bluez.Device1","Paired",&error,'b',&paired);
+    sd_bus_error_free(&error);
+    (void)sd_bus_get_property_trivial(bus,"org.bluez",path,"org.bluez.Device1","Connected",&error,'b',&connected);
+
     snprintf(device->mac,sizeof(device->mac),"%s",address);
-    snprintf(device->name,sizeof(device->name),"%s",alias[0]?alias:(name[0]?name:address));
+    snprintf(device->name,sizeof(device->name),"%s",(alias&&alias[0])?alias:((name&&name[0])?name:address));
     device->paired=paired?1:0;
     device->connected=connected?1:0;
-    return 1;
+    r=1;
+
+out:
+    if(r<0&&error.name&&error.name[0])
+        app_logf("Bluetooth Discovery: Property %s %s",path,error.name);
+    free(address);
+    free(alias);
+    free(name);
+    sd_bus_error_free(&error);
+    return r;
 }
 
 int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
@@ -212,10 +189,7 @@ int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
                          "");
     if(r<0){
         if(error.name&&error.name[0])app_logf("Bluetooth Discovery: ObjectManager %s",error.name);
-        sd_bus_message_unref(reply);
-        sd_bus_error_free(&error);
-        sd_bus_unref(bus);
-        return 0;
+        goto out;
     }
 
     int count=0;
@@ -227,27 +201,17 @@ int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
         r=sd_bus_message_read_basic(reply,'o',&object_path);
         if(r<0)break;
 
+        int is_device=0;
         r=sd_bus_message_enter_container(reply,'a',"{sa{sv}}");
         if(r<0)break;
-
-        int have_device=0;
-        BluetoothDevice candidate;
-        memset(&candidate,0,sizeof(candidate));
 
         while((r=sd_bus_message_enter_container(reply,'e',"sa{sv}"))>0){
             const char *interface_name=NULL;
             r=sd_bus_message_read_basic(reply,'s',&interface_name);
             if(r<0)break;
-
-            if(interface_name&&!strcmp(interface_name,"org.bluez.Device1")){
-                int parsed=parse_device_properties(reply,&candidate);
-                if(parsed<0){r=parsed;break;}
-                if(parsed>0)have_device=1;
-            }else{
-                r=sd_bus_message_skip(reply,"a{sv}");
-                if(r<0)break;
-            }
-
+            if(interface_name&&!strcmp(interface_name,"org.bluez.Device1"))is_device=1;
+            r=sd_bus_message_skip(reply,"a{sv}");
+            if(r<0)break;
             r=sd_bus_message_exit_container(reply);
             if(r<0)break;
         }
@@ -258,24 +222,28 @@ int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
         r=sd_bus_message_exit_container(reply);
         if(r<0)break;
 
-        if(have_device){
-            if(count<max_devices)devices[count++]=candidate;
-            if(discovery_active)app_logf("Bluetooth Discovery: Device %s %s paired=%d connected=%d",
-                                         candidate.mac,candidate.name,candidate.paired,candidate.connected);
+        if(is_device&&object_path&&count<max_devices){
+            BluetoothDevice candidate;
+            memset(&candidate,0,sizeof(candidate));
+            int rr=read_device(bus,object_path,&candidate);
+            if(rr>0){
+                devices[count++]=candidate;
+                if(discovery_active)app_logf("Bluetooth Discovery: Device %s %s paired=%d connected=%d",
+                                             candidate.mac,candidate.name,candidate.paired,candidate.connected);
+            }
         }
-        (void)object_path;
     }
 
     if(r>=0)sd_bus_message_exit_container(reply);
-
-out:
     if(r<0)app_logf("Bluetooth Discovery: Parse-Fehler %d",r);
     if(discovery_active&&count!=last_logged_count){
         app_logf("Bluetooth Discovery: %d Geraete sichtbar",count);
         last_logged_count=count;
     }
+
+out:
     sd_bus_message_unref(reply);
     sd_bus_error_free(&error);
     sd_bus_unref(bus);
-    return count;
+    return r<0?0:count;
 }
