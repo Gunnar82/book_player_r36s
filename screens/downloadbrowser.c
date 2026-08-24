@@ -128,12 +128,35 @@ static void format_rate(char *out,size_t out_size,double bytes_per_second)
     else snprintf(out,out_size,"%.0f KB/s",bytes_per_second/1024.0);
 }
 
-static void format_folder(char *out,size_t out_size,const char *folder)
+static void format_tail(char *out,size_t out_size,const char *text,size_t max_chars)
 {
-    const char *src=(folder&&folder[0])?folder:"/";
-    size_t n=strlen(src);
-    if(n<=70){snprintf(out,out_size,"%s%s",src[0]=='/'?"":"/",src);return;}
-    snprintf(out,out_size,"...%s",src+n-67);
+    if(!out||out_size==0)return;
+    if(!text){out[0]='\0';return;}
+    size_t n=strlen(text);
+    if(n<=max_chars){snprintf(out,out_size,"%s",text);return;}
+    size_t keep=max_chars>3?max_chars-3:0;
+    snprintf(out,out_size,"...%s",text+n-keep);
+}
+
+static void format_folder_lines(char *line1,size_t line1_size,char *line2,size_t line2_size,const char *folder)
+{
+    line1[0]='\0';
+    line2[0]='\0';
+    if(!folder||!folder[0]){snprintf(line1,line1_size,"/");return;}
+
+    char path[REMOTE_PATH_LEN+2];
+    snprintf(path,sizeof(path),"%s%s",folder[0]=='/'?"":"/",folder);
+    char *last=strrchr(path,'/');
+    if(!last||last==path){
+        format_tail(line1,line1_size,last&&last[1]?last+1:path,54);
+        return;
+    }
+
+    char leaf[REMOTE_NAME_LEN+8];
+    snprintf(leaf,sizeof(leaf),"%s",last+1);
+    *last='\0';
+    format_tail(line1,line1_size,path,54);
+    format_tail(line2,line2_size,leaf,54);
 }
 
 static void draw_bar(ScreenContext *c,int y,double pct)
@@ -196,11 +219,11 @@ static int progress_render(const char *folder,const char *name,int file_index,in
         if(rate>0)total_eta=(total_size-total_now)/rate;
     }
 
-    char file_eta_text[32],total_eta_text[32],rate_text[32],folder_text[96],line[512];
+    char file_eta_text[32],total_eta_text[32],rate_text[32],folder_line1[96],folder_line2[96],line[512];
     format_eta(file_eta_text,sizeof(file_eta_text),file_eta);
     format_eta(total_eta_text,sizeof(total_eta_text),total_eta);
     format_rate(rate_text,sizeof(rate_text),ui->rate_bps);
-    format_folder(folder_text,sizeof(folder_text),folder);
+    format_folder_lines(folder_line1,sizeof(folder_line1),folder_line2,sizeof(folder_line2),folder);
 
     SDL_SetRenderDrawColor(c->renderer,20,20,30,255);
     SDL_RenderClear(c->renderer);
@@ -223,10 +246,11 @@ static int progress_render(const char *folder,const char *name,int file_index,in
     snprintf(line,sizeof(line),"Restzeit Gesamt: %s",total_eta_text);
     draw_text(c->renderer,c->font,line,20,274,c->gray);
 
-    snprintf(line,sizeof(line),"Ordner: %s",folder_text);
-    draw_text(c->renderer,c->font,line,20,316,c->gray);
+    snprintf(line,sizeof(line),"Ordner: %s",folder_line1);
+    draw_text(c->renderer,c->font,line,20,312,c->gray);
+    if(folder_line2[0])draw_text(c->renderer,c->font,folder_line2,95,334,c->gray);
     snprintf(line,sizeof(line),"Downloadrate: %s",rate_text);
-    draw_text(c->renderer,c->font,line,20,340,c->gray);
+    draw_text(c->renderer,c->font,line,20,360,c->gray);
 
     draw_text(c->renderer,c->font,"B: Abbrechen",20,410,c->gray);
     SDL_RenderPresent(c->renderer);
