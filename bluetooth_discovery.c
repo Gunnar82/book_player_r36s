@@ -7,6 +7,7 @@
 #include <systemd/sd-bus.h>
 
 static int discovery_active=0;
+static int last_logged_count=-1;
 
 static int mac_valid(const char *mac)
 {
@@ -16,6 +17,67 @@ static int mac_valid(const char *mac)
         else if(!isxdigit((unsigned char)mac[i]))return 0;
     }
     return 1;
+}
+
+static int adapter_set_discovery_filter(sd_bus *bus,const char *path)
+{
+    sd_bus_message *m=NULL;
+    sd_bus_message *reply=NULL;
+    sd_bus_error error=SD_BUS_ERROR_NULL;
+    int r=sd_bus_message_new_method_call(bus,&m,"org.bluez",path,"org.bluez.Adapter1","SetDiscoveryFilter");
+    if(r<0)goto out;
+    r=sd_bus_message_open_container(m,'a',"{sv}");
+    if(r<0)goto out;
+    r=sd_bus_message_open_container(m,'e',"sv");
+    if(r<0)goto out;
+    r=sd_bus_message_append_basic(m,'s',"Transport");
+    if(r<0)goto out;
+    r=sd_bus_message_open_container(m,'v',"s");
+    if(r<0)goto out;
+    r=sd_bus_message_append_basic(m,'s',"auto");
+    if(r<0)goto out;
+    r=sd_bus_message_close_container(m);
+    if(r<0)goto out;
+    r=sd_bus_message_close_container(m);
+    if(r<0)goto out;
+    r=sd_bus_message_close_container(m);
+    if(r<0)goto out;
+    r=sd_bus_call(bus,m,0,&error,&reply);
+out:
+    if(r<0&&error.name&&error.name[0])app_logf("Bluetooth Discovery: Filter %s",error.name);
+    sd_bus_message_unref(reply);
+    sd_bus_message_unref(m);
+    sd_bus_error_free(&error);
+    return r;
+}
+
+static int adapter_start(void)
+{
+    const char *paths[]={"/org/bluez/hci0","/org/bluez/hci1"};
+    sd_bus *bus=NULL;
+    int r=sd_bus_open_system(&bus);
+    if(r<0)return r;
+
+    int last=-1;
+    for(size_t i=0;i<sizeof(paths)/sizeof(paths[0]);i++){
+        sd_bus_error error=SD_BUS_ERROR_NULL;
+        sd_bus_message *reply=NULL;
+        r=adapter_set_discovery_filter(bus,paths[i]);
+        if(r<0){last=r;continue;}
+        r=sd_bus_call_method(bus,"org.bluez",paths[i],"org.bluez.Adapter1","StartDiscovery",&error,&reply,"");
+        if(r>=0){
+            app_logf("Bluetooth Discovery: Adapter %s",paths[i]);
+            last=0;
+        }else{
+            if(error.name&&error.name[0])app_logf("Bluetooth Discovery: Start %s",error.name);
+            last=r;
+        }
+        sd_bus_message_unref(reply);
+        sd_bus_error_free(&error);
+        if(last==0)break;
+    }
+    sd_bus_unref(bus);
+    return last;
 }
 
 static int adapter_method(const char *method)
@@ -41,9 +103,10 @@ static int adapter_method(const char *method)
 
 int bluetooth_discovery_start(void)
 {
-    int r=adapter_method("StartDiscovery");
+    int r=adapter_start();
     if(r<0){app_logf("Bluetooth Discovery: Start fehlgeschlagen (%d)",r);return -1;}
     discovery_active=1;
+    last_logged_count=-1;
     app_logf("Bluetooth Discovery: gestartet");
     return 0;
 }
@@ -53,6 +116,7 @@ int bluetooth_discovery_stop(void)
     if(!discovery_active)return 0;
     int r=adapter_method("StopDiscovery");
     discovery_active=0;
+    last_logged_count=-1;
     if(r<0){app_logf("Bluetooth Discovery: Stop fehlgeschlagen (%d)",r);return -1;}
     app_logf("Bluetooth Discovery: gestoppt");
     return 0;
@@ -136,7 +200,7 @@ int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
     sd_bus_error error=SD_BUS_ERROR_NULL;
     sd_bus_message *reply=NULL;
     int r=sd_bus_open_system(&bus);
-    if(r<0)return 0;
+    if(r<0){app_logf("Bluetooth Discovery: System-D-Bus %d",r);return 0;}
 
     r=sd_bus_call_method(bus,
                          "org.bluez",
@@ -158,7 +222,7 @@ int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
     r=sd_bus_message_enter_container(reply,'a',"{oa{sa{sv}}}");
     if(r<0)goto out;
 
-    while(count<max_devices&&(r=sd_bus_message_enter_container(reply,'e',"oa{sa{sv}}"))>0){
+    while((r=sd_bus_message_enter_container(reply,'e',"oa{sa{sv}}"))>0){
         const char *object_path=NULL;
         r=sd_bus_message_read_basic(reply,'o',&object_path);
         if(r<0)break;
@@ -194,13 +258,22 @@ int bluetooth_scan_all(BluetoothDevice *devices,int max_devices)
         r=sd_bus_message_exit_container(reply);
         if(r<0)break;
 
-        if(have_device)devices[count++]=candidate;
+        if(have_device){
+            if(count<max_devices)devices[count++]=candidate;
+            if(discovery_active)app_logf("Bluetooth Discovery: Device %s %s paired=%d connected=%d",
+                                         candidate.mac,candidate.name,candidate.paired,candidate.connected);
+        }
         (void)object_path;
     }
 
     if(r>=0)sd_bus_message_exit_container(reply);
 
 out:
+    if(r<0)app_logf("Bluetooth Discovery: Parse-Fehler %d",r);
+    if(discovery_active&&count!=last_logged_count){
+        app_logf("Bluetooth Discovery: %d Geraete sichtbar",count);
+        last_logged_count=count;
+    }
     sd_bus_message_unref(reply);
     sd_bus_error_free(&error);
     sd_bus_unref(bus);
