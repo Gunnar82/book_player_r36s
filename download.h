@@ -25,7 +25,8 @@ typedef struct {
     char relative_path[REMOTE_PATH_LEN];
 } RemoteSelection;
 
-typedef int (*DownloadProgressFn)(const char *name,
+typedef int (*DownloadProgressFn)(const char *folder,
+                                  const char *name,
                                   int file_index,
                                   int file_count,
                                   long long file_now,
