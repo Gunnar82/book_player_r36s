@@ -50,12 +50,17 @@ SOURCES := \
 
 OBJECTS := $(SOURCES:.c=.o)
 
-.PHONY: all clean
+.PHONY: all clean test-utils
 
 all: hoerspiel_player
 
 hoerspiel_player: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PKG_LIBS)
+
+test-utils:
+	$(CC) $(CFLAGS) -I. tests/test_util_config.c util.c config_update.c -o /tmp/hoerspiel-test-util-config
+	/tmp/hoerspiel-test-util-config
+	rm -f /tmp/hoerspiel-test-util-config
 
 streaming.o: streaming.c network_limits.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@
