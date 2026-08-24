@@ -1,6 +1,7 @@
 #include "bluetooth.h"
 #include "storage.h"
 #include "app_log.h"
+#include "util.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -19,14 +20,6 @@ int bluetooth_adapter_present(void)
 {
     return access("/sys/class/bluetooth/hci0", F_OK) == 0 ||
            access("/sys/class/bluetooth/hci1", F_OK) == 0;
-}
-
-static void trim(char *s)
-{
-    if(!s)return;
-    char *p=s;while(*p&&isspace((unsigned char)*p))p++;
-    if(p!=s)memmove(s,p,strlen(p)+1);
-    size_t n=strlen(s);while(n&&isspace((unsigned char)s[n-1]))s[--n]='\0';
 }
 
 static int bluetooth_mac_valid(const char *mac)
@@ -94,11 +87,11 @@ void bluetooth_load_config(void)
     if(!fp)return;
     char line[1200];int in_section=0;
     while(fgets(line,sizeof(line),fp)){
-        trim(line);
+        util_trim(line);
         if(!line[0]||line[0]=='#'||line[0]==';')continue;
         if(line[0]=='['){in_section=!strcmp(line,"[bluetooth]");continue;}
         if(!in_section)continue;
-        char *eq=strchr(line,'=');if(!eq)continue;*eq++='\0';trim(line);trim(eq);
+        char *eq=strchr(line,'=');if(!eq)continue;*eq++='\0';util_trim(line);util_trim(eq);
         if(!strcmp(line,"autoconnect"))bluetooth_autoconnect=atoi(eq)?1:0;
         else if(!strcmp(line,"device")){
             if(!eq[0]||bluetooth_mac_valid(eq))snprintf(bluetooth_device_mac,sizeof(bluetooth_device_mac),"%s",eq);
@@ -117,7 +110,7 @@ int bluetooth_save_config(void)
     fp=fopen(path,"w");if(!fp)goto fail;
     int in=0,have=0,wrote_auto=0,wrote_dev=0;
     for(size_t i=0;i<count;i++){
-        char check[1200];snprintf(check,sizeof(check),"%s",lines[i]);trim(check);
+        char check[1200];snprintf(check,sizeof(check),"%s",lines[i]);util_trim(check);
         if(check[0]=='['){
             if(in){if(!wrote_auto)fprintf(fp,"autoconnect=%d\n",bluetooth_autoconnect);if(!wrote_dev)fprintf(fp,"device=%s\n",bluetooth_device_mac);}
             in=!strcmp(check,"[bluetooth]");if(in)have=1;fputs(lines[i],fp);continue;
@@ -146,8 +139,8 @@ static int device_info(const char *mac,char *name,size_t name_size,int *paired,i
     char line[512];if(name&&name_size)name[0]='\0';if(paired)*paired=0;if(trusted)*trusted=0;if(connected)*connected=0;
     while(fgets(line,sizeof(line),fp)){
         char *p=line;while(*p&&isspace((unsigned char)*p))p++;
-        if(!strncmp(p,"Alias:",6)&&name){p+=6;trim(p);snprintf(name,name_size,"%s",p);}
-        else if(!strncmp(p,"Name:",5)&&name&&!name[0]){p+=5;trim(p);snprintf(name,name_size,"%s",p);}
+        if(!strncmp(p,"Alias:",6)&&name){p+=6;util_trim(p);snprintf(name,name_size,"%s",p);}
+        else if(!strncmp(p,"Name:",5)&&name&&!name[0]){p+=5;util_trim(p);snprintf(name,name_size,"%s",p);}
         else if(!strncmp(p,"Paired:",7)&&paired)*paired=strstr(p,"yes")!=NULL;
         else if(!strncmp(p,"Trusted:",8)&&trusted)*trusted=strstr(p,"yes")!=NULL;
         else if(!strncmp(p,"Connected:",10)&&connected)*connected=strstr(p,"yes")!=NULL;
