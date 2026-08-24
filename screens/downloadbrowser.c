@@ -206,26 +206,27 @@ static int progress_render(const char *folder,const char *name,int file_index,in
     SDL_RenderClear(c->renderer);
     draw_text(c->renderer,c->font,"Download",20,18,c->selected);
 
-    snprintf(line,sizeof(line),"Ordner: %s",folder_text);
-    draw_text(c->renderer,c->font,line,20,48,c->gray);
     snprintf(line,sizeof(line),"Datei %d / %d: %s",file_index,file_count,name?name:"");
-    draw_text(c->renderer,c->font,line,20,76,c->white);
+    draw_text(c->renderer,c->font,line,20,62,c->white);
 
     if(file_total>0)snprintf(line,sizeof(line),"Datei: %.1f / %.1f MB  (%.0f %%)",file_now/1048576.0,file_total/1048576.0,file_pct);
     else snprintf(line,sizeof(line),"Datei: %.1f MB",file_now/1048576.0);
-    draw_text(c->renderer,c->font,line,20,112,c->white);
+    draw_text(c->renderer,c->font,line,20,108,c->white);
     draw_bar(c,142,file_pct);
     snprintf(line,sizeof(line),"Restzeit Datei: %s",file_eta_text);
     draw_text(c->renderer,c->font,line,20,164,c->gray);
-    snprintf(line,sizeof(line),"Downloadrate: %s",rate_text);
-    draw_text(c->renderer,c->font,line,20,188,c->gray);
 
     if(total_size>0)snprintf(line,sizeof(line),"Gesamt: %.1f / %.1f MB  (%.0f %%)",total_now/1048576.0,total_size/1048576.0,total_pct);
     else snprintf(line,sizeof(line),"Gesamt: %.1f MB",total_now/1048576.0);
-    draw_text(c->renderer,c->font,line,20,230,c->white);
-    draw_bar(c,262,total_pct);
+    draw_text(c->renderer,c->font,line,20,218,c->white);
+    draw_bar(c,252,total_pct);
     snprintf(line,sizeof(line),"Restzeit Gesamt: %s",total_eta_text);
-    draw_text(c->renderer,c->font,line,20,284,c->gray);
+    draw_text(c->renderer,c->font,line,20,274,c->gray);
+
+    snprintf(line,sizeof(line),"Ordner: %s",folder_text);
+    draw_text(c->renderer,c->font,line,20,316,c->gray);
+    snprintf(line,sizeof(line),"Downloadrate: %s",rate_text);
+    draw_text(c->renderer,c->font,line,20,340,c->gray);
 
     draw_text(c->renderer,c->font,"B: Abbrechen",20,410,c->gray);
     SDL_RenderPresent(c->renderer);
