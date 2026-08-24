@@ -12,6 +12,7 @@ SOURCES := \
 	platform_system.c \
 	util.c \
 	config_update.c \
+	stream_config.c \
 	state.c \
 	backlight.c \
 	battery.c \
