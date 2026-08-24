@@ -11,6 +11,7 @@ SOURCES := \
 	main.c \
 	platform_system.c \
 	util.c \
+	config_update.c \
 	state.c \
 	backlight.c \
 	battery.c \
