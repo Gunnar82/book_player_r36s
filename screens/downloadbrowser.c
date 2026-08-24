@@ -16,7 +16,6 @@
 #define MAX_ROWS ((BOTTOM_Y-TOP_Y)/ROW_H)
 #define MAX_SELECTIONS 256
 
-
 static int join_path_checked(char *dst,size_t dst_size,const char *a,const char *b){
     if(!dst||dst_size==0||!a||!b)return -1;
     size_t al=strlen(a),bl=strlen(b);
@@ -55,6 +54,9 @@ typedef struct {
     ScreenContext *screen;
     Uint32 total_start;
     Uint32 file_start;
+    Uint32 rate_sample_time;
+    long long rate_sample_bytes;
+    double rate_bps;
     int last_file_index;
     char last_name[REMOTE_NAME_LEN];
 } DownloadUiProgress;
@@ -119,6 +121,21 @@ static void format_eta(char *out,size_t out_size,double seconds)
     else snprintf(out,out_size,"%02ld:%02ld",m,sec);
 }
 
+static void format_rate(char *out,size_t out_size,double bytes_per_second)
+{
+    if(bytes_per_second<1.0){snprintf(out,out_size,"--");return;}
+    if(bytes_per_second>=1048576.0)snprintf(out,out_size,"%.2f MB/s",bytes_per_second/1048576.0);
+    else snprintf(out,out_size,"%.0f KB/s",bytes_per_second/1024.0);
+}
+
+static void format_folder(char *out,size_t out_size,const char *folder)
+{
+    const char *src=(folder&&folder[0])?folder:"/";
+    size_t n=strlen(src);
+    if(n<=70){snprintf(out,out_size,"%s%s",src[0]=='/'?"":"/",src);return;}
+    snprintf(out,out_size,"...%s",src+n-67);
+}
+
 static void draw_bar(ScreenContext *c,int y,double pct)
 {
     if(pct<0)pct=0;
@@ -132,7 +149,7 @@ static void draw_bar(ScreenContext *c,int y,double pct)
     SDL_RenderFillRect(c->renderer,&fill);
 }
 
-static int progress_render(const char *name,int file_index,int file_count,long long file_now,long long file_total,long long total_now,long long total_size,void *userdata)
+static int progress_render(const char *folder,const char *name,int file_index,int file_count,long long file_now,long long file_total,long long total_now,long long total_size,void *userdata)
 {
     DownloadUiProgress *ui=(DownloadUiProgress*)userdata;
     ScreenContext *c=ui->screen;
@@ -148,6 +165,18 @@ static int progress_render(const char *name,int file_index,int file_count,long l
         ui->last_file_index=file_index;
         snprintf(ui->last_name,sizeof(ui->last_name),"%s",name?name:"");
         ui->file_start=now;
+        ui->rate_sample_time=now;
+        ui->rate_sample_bytes=file_now;
+        ui->rate_bps=0.0;
+    }else if(now-ui->rate_sample_time>=500U){
+        Uint32 dt=now-ui->rate_sample_time;
+        long long db=file_now-ui->rate_sample_bytes;
+        if(db>=0&&dt>0){
+            double instant=(double)db*1000.0/(double)dt;
+            ui->rate_bps=ui->rate_bps>0.0?ui->rate_bps*0.65+instant*0.35:instant;
+        }
+        ui->rate_sample_time=now;
+        ui->rate_sample_bytes=file_now;
     }
 
     double file_pct=file_total>0?100.0*(double)file_now/(double)file_total:0.0;
@@ -167,30 +196,36 @@ static int progress_render(const char *name,int file_index,int file_count,long l
         if(rate>0)total_eta=(total_size-total_now)/rate;
     }
 
-    char file_eta_text[32],total_eta_text[32],line[512];
+    char file_eta_text[32],total_eta_text[32],rate_text[32],folder_text[96],line[512];
     format_eta(file_eta_text,sizeof(file_eta_text),file_eta);
     format_eta(total_eta_text,sizeof(total_eta_text),total_eta);
+    format_rate(rate_text,sizeof(rate_text),ui->rate_bps);
+    format_folder(folder_text,sizeof(folder_text),folder);
 
     SDL_SetRenderDrawColor(c->renderer,20,20,30,255);
     SDL_RenderClear(c->renderer);
     draw_text(c->renderer,c->font,"Download",20,18,c->selected);
 
+    snprintf(line,sizeof(line),"Ordner: %s",folder_text);
+    draw_text(c->renderer,c->font,line,20,48,c->gray);
     snprintf(line,sizeof(line),"Datei %d / %d: %s",file_index,file_count,name?name:"");
-    draw_text(c->renderer,c->font,line,20,62,c->white);
+    draw_text(c->renderer,c->font,line,20,76,c->white);
 
     if(file_total>0)snprintf(line,sizeof(line),"Datei: %.1f / %.1f MB  (%.0f %%)",file_now/1048576.0,file_total/1048576.0,file_pct);
     else snprintf(line,sizeof(line),"Datei: %.1f MB",file_now/1048576.0);
-    draw_text(c->renderer,c->font,line,20,108,c->white);
+    draw_text(c->renderer,c->font,line,20,112,c->white);
     draw_bar(c,142,file_pct);
     snprintf(line,sizeof(line),"Restzeit Datei: %s",file_eta_text);
     draw_text(c->renderer,c->font,line,20,164,c->gray);
+    snprintf(line,sizeof(line),"Downloadrate: %s",rate_text);
+    draw_text(c->renderer,c->font,line,20,188,c->gray);
 
     if(total_size>0)snprintf(line,sizeof(line),"Gesamt: %.1f / %.1f MB  (%.0f %%)",total_now/1048576.0,total_size/1048576.0,total_pct);
     else snprintf(line,sizeof(line),"Gesamt: %.1f MB",total_now/1048576.0);
-    draw_text(c->renderer,c->font,line,20,218,c->white);
-    draw_bar(c,252,total_pct);
+    draw_text(c->renderer,c->font,line,20,230,c->white);
+    draw_bar(c,262,total_pct);
     snprintf(line,sizeof(line),"Restzeit Gesamt: %s",total_eta_text);
-    draw_text(c->renderer,c->font,line,20,274,c->gray);
+    draw_text(c->renderer,c->font,line,20,284,c->gray);
 
     draw_text(c->renderer,c->font,"B: Abbrechen",20,410,c->gray);
     SDL_RenderPresent(c->renderer);
