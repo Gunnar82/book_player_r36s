@@ -9,6 +9,7 @@ LDFLAGS := -Wl,-rpath,'$$ORIGIN/lib'
 
 SOURCES := \
 	main.c \
+	util.c \
 	state.c \
 	backlight.c \
 	battery.c \
