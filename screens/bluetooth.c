@@ -1,6 +1,7 @@
 #include "bluetooth.h"
 #include "../bluetooth.h"
 #include "../bluetooth_discovery.h"
+#include "../bluetooth_agent.h"
 #include "../ui.h"
 #include "../app_log.h"
 #include <stdio.h>
@@ -27,6 +28,7 @@ static void refresh(void){
 
 void bluetoothscreen_reset(void){
     if(discovery_mode)bluetooth_discovery_stop();
+    bluetooth_agent_stop();
     discovery_mode=0;
     selection=0;
     message[0]='\0';
@@ -44,10 +46,12 @@ static void toggle_discovery(void)
 {
     if(discovery_mode){
         bluetooth_discovery_stop();
+        bluetooth_agent_stop();
         discovery_mode=0;
         set_message("Suche beendet");
     }else{
-        if(bluetooth_discovery_start()!=0){set_message("Suche konnte nicht gestartet werden");return;}
+        if(bluetooth_agent_start()!=0){set_message("Bluetooth-Agent konnte nicht gestartet werden");return;}
+        if(bluetooth_discovery_start()!=0){bluetooth_agent_stop();set_message("Suche konnte nicht gestartet werden");return;}
         discovery_mode=1;
         last_discovery_refresh=0;
         set_message("Suche gestartet");
@@ -58,7 +62,7 @@ static void toggle_discovery(void)
 void bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
 {
     if(e->type==SDL_JOYBUTTONDOWN){int b=e->jbutton.button;
-        if(b==BUTTON_B){if(discovery_mode)bluetooth_discovery_stop();discovery_mode=0;*c->screen=SCREEN_SYSTEM_INFO;return;}
+        if(b==BUTTON_B){if(discovery_mode)bluetooth_discovery_stop();bluetooth_agent_stop();discovery_mode=0;*c->screen=SCREEN_SYSTEM_INFO;return;}
         if(b==BUTTON_DPAD_UP){move(-1);return;}
         if(b==BUTTON_DPAD_DOWN){move(1);return;}
         if(selection==0&&(b==BUTTON_A||b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)){toggle_auto();return;}
@@ -82,6 +86,7 @@ void bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
 
 void bluetoothscreen_render(ScreenContext *c)
 {
+    bluetooth_agent_process();
     if(discovery_mode&&SDL_GetTicks()-last_discovery_refresh>=1000U){refresh();last_discovery_refresh=SDL_GetTicks();}
 
     draw_text(c->renderer,c->font,"Bluetooth",20,20,c->selected);
