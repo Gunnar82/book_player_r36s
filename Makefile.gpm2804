@@ -43,6 +43,7 @@ SOURCES := \
 	mpris_bridge.c \
 	bluetooth.c \
 	batocera_bluetooth.c \
+	batocera_pair_agent.c \
 	batocera_bluetooth_override.c \
 	batocera_bluetooth_ui.c \
 	hfp_gateway.c \
