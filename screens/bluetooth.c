@@ -8,7 +8,9 @@
 #include <string.h>
 #include <strings.h>
 
+#ifdef BUILD_R36S
 void r36s_bluetooth_input_set_active(int active);
+#endif
 
 static BluetoothDevice devices[BT_MAX_DEVICES];
 static BluetoothDevice live[BT_MAX_DEVICES];
@@ -24,7 +26,11 @@ static int pair_worker(void *unused){(void)unused;pair_result=batocera_pair_agen
 static void finish_pair(void){if(!pair_thread||!SDL_AtomicGet(&pair_done))return;SDL_WaitThread(pair_thread,NULL);pair_thread=NULL;bluez_discovery_stop();scanning=0;selection=1;refresh();if(pair_result==0){snprintf(bluetooth_device_mac,sizeof(bluetooth_device_mac),"%s",pair_mac);bluetooth_save_config();set_message(bluetooth_connect_device(pair_mac)==0?"Geraet gekoppelt und verbunden":"Gekoppelt, Verbindung fehlgeschlagen");}else set_message("Koppeln fehlgeschlagen");}
 static void start_scan(void){if(!bluetooth_adapter_powered()){set_message("Bluetooth ist ausgeschaltet");return;}live_count=0;selection=0;if(bluez_discovery_start()!=0){set_message("Suche konnte nicht gestartet werden");return;}scanning=1;last_refresh=0;set_message("Suche laeuft ...");}
 static void stop_scan(void){bluez_discovery_stop();scanning=0;live_count=0;selection=1;refresh();}
-void bluetoothscreen_reset(void){if(scanning)bluez_discovery_stop();scanning=0;selection=0;live_count=0;message[0]='\0';message_until=0;r36s_bluetooth_input_set_active(1);bluetooth_log_if_changed();refresh();}
+void bluetoothscreen_reset(void){if(scanning)bluez_discovery_stop();scanning=0;selection=0;live_count=0;message[0]='\0';message_until=0;
+#ifdef BUILD_R36S
+r36s_bluetooth_input_set_active(1);
+#endif
+bluetooth_log_if_changed();refresh();}
 static void move(int delta){int max=scanning?(live_count>0?live_count-1:0):device_count+1;selection+=delta;if(selection<0)selection=max;if(selection>max)selection=0;}
 static void toggle_auto(void){bluetooth_autoconnect=!bluetooth_autoconnect;if(bluetooth_save_config()!=0)set_message("config.ini konnte nicht gespeichert werden");else set_message(bluetooth_autoconnect?"Autoconnect: Ein":"Autoconnect: Aus");}
 static void remove_device(BluetoothDevice *d){if(!d)return;if(bluetooth_remove_device(d->mac)==0){if(!strcmp(bluetooth_device_mac,d->mac)){bluetooth_device_mac[0]='\0';bluetooth_save_config();}set_message("Geraet entfernt");refresh();}else set_message("Entfernen fehlgeschlagen");}
@@ -38,7 +44,12 @@ void bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
             if(b==BUTTON_B){stop_scan();return;}if(b==BUTTON_DPAD_UP){move(-1);return;}if(b==BUTTON_DPAD_DOWN){move(1);return;}
             if(b==BUTTON_A&&live_count>0){snprintf(pair_mac,sizeof(pair_mac),"%s",live[selection].mac);SDL_AtomicSet(&pair_done,0);pair_result=-1;pair_thread=SDL_CreateThread(pair_worker,"bt-pair",NULL);if(!pair_thread)set_message("Pairing-Thread konnte nicht starten");else set_message("Kopple Geraet ...");return;}return;
         }
-        if(b==BUTTON_B){r36s_bluetooth_input_set_active(0);*c->screen=SCREEN_SYSTEM_INFO;return;}if(b==BUTTON_DPAD_UP){move(-1);return;}if(b==BUTTON_DPAD_DOWN){move(1);return;}
+        if(b==BUTTON_B){
+#ifdef BUILD_R36S
+            r36s_bluetooth_input_set_active(0);
+#endif
+            *c->screen=SCREEN_SYSTEM_INFO;return;
+        }if(b==BUTTON_DPAD_UP){move(-1);return;}if(b==BUTTON_DPAD_DOWN){move(1);return;}
         if(selection==0&&(b==BUTTON_A||b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)){toggle_auto();return;}
         if(selection==1&&b==BUTTON_A){start_scan();return;}
         if(selection>=2&&selection<device_count+2){BluetoothDevice *d=&devices[selection-2];if(b==BUTTON_R1){remove_device(d);return;}if(b==BUTTON_A){snprintf(bluetooth_device_mac,sizeof(bluetooth_device_mac),"%s",d->mac);if(bluetooth_save_config()!=0){set_message("Auswahl konnte nicht gespeichert werden");return;}set_message("Verbinde ...");int rc=bluetooth_connect_device(d->mac);refresh();set_message(rc==0?"Verbindung erfolgreich":"Verbindung fehlgeschlagen");return;}}
