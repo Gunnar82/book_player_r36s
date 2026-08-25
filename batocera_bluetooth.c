@@ -1,4 +1,5 @@
 #include "batocera_bluetooth.h"
+#include "batocera_pair_agent.h"
 #include "app_log.h"
 
 #include <ctype.h>
@@ -82,8 +83,15 @@ int batocera_bluetooth_remove(const char *mac){return mac_valid(mac)?run_action(
 int batocera_bluetooth_pair(const char *mac)
 {
     if(!mac_valid(mac))return -1;
-    if(run_action("trust",mac)!=0)return -1;
-    return run_action("save",NULL);
+
+    /* Batoceras bluetooth-agent kann bestimmte unpaired/connected-Zustaende
+       nicht sauber behandeln und ist ausserdem als NoInputNoOutput registriert.
+       Fuer die eigentliche Authentifizierung verwenden wir daher einen kleinen,
+       nur waehrend dieses Pairings registrierten DisplayYesNo-Agenten. Alle
+       persistenten Batocera-Schritte bleiben beim Systemkommando. */
+    if(batocera_pair_agent_pair(mac)!=0)return -1;
+    if(run_action("save",NULL)!=0)return -1;
+    return run_action("connect",mac);
 }
 
 int batocera_bluetooth_list(BluetoothDevice *devices,int max_devices)
