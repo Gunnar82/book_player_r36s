@@ -52,6 +52,12 @@ int __wrap_input_normalize_event(SDL_Event *e)
 {
     int rc=__real_input_normalize_event(e);
     if(!rc||!e)return rc;
+#ifdef BUILD_BATOCERA
+    /* X ist in main.c global fuer das Systemmenue reserviert. Im
+       Batocera-Bluetooth-Screen muss die lokale Entfernen-Aktion zuerst
+       die Chance bekommen, das Event intern umzusetzen. */
+    batocera_bluetooth_remap_event(e);
+#endif
     if(foreground_waiting&&e->type==SDL_JOYBUTTONDOWN&&e->jbutton.button==BUTTON_Y){
         background_requested=1;
         return 0;
