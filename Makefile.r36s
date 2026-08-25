@@ -33,7 +33,6 @@ SOURCES := \
 	media_feedback.c \
 	app_log.c \
 	input_config.c \
-	r36s_bluetooth_input.c \
 	streaming.c \
 	qr_render.c \
 	mpris_bridge.c \
