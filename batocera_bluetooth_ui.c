@@ -15,6 +15,7 @@ static int saved_count;
 static int live_count;
 static int selection;
 static int scanning;
+static int bluetooth_ui_active;
 static Uint32 last_scan_refresh;
 static char message[160];
 static Uint32 message_until;
@@ -84,7 +85,20 @@ void __wrap_bluetoothscreen_reset(void)
 {
     if(scanning)batocera_bluetooth_stop_live_devices();
     scanning=0;selection=0;live_count=0;message[0]='\0';message_until=0;
+    bluetooth_ui_active=1;
     refresh_saved();
+}
+
+int batocera_bluetooth_remap_event(SDL_Event *e)
+{
+    if(!bluetooth_ui_active||!e||e->type!=SDL_JOYBUTTONDOWN)return 0;
+    if(e->jbutton.button==BUTTON_X){
+        /* main.c verwendet X global fuer das Systemmenue. R1 ist im
+           Bluetooth-Screen unsere interne Remove-Aktion; nur hier remappen. */
+        e->jbutton.button=BUTTON_R1;
+        return 1;
+    }
+    return 0;
 }
 
 static void toggle_power(void)
@@ -174,7 +188,7 @@ void __wrap_bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
             return;
         }
 
-        if(b==BUTTON_B){*c->screen=SCREEN_SYSTEM_INFO;return;}
+        if(b==BUTTON_B){bluetooth_ui_active=0;*c->screen=SCREEN_SYSTEM_INFO;return;}
         if(b==BUTTON_DPAD_UP){move_selection(-1);return;}
         if(b==BUTTON_DPAD_DOWN){move_selection(1);return;}
         if(selection==0&&(b==BUTTON_A||b==BUTTON_DPAD_LEFT||b==BUTTON_DPAD_RIGHT)){toggle_power();return;}
@@ -250,5 +264,5 @@ void __wrap_bluetoothscreen_render(ScreenContext *c)
 
     Uint32 now=SDL_GetTicks();
     if(message[0]&&(Sint32)(message_until-now)>0)draw_text(c->renderer,c->font,message,35,SCREEN_H-65,c->selected);
-    draw_text(c->renderer,c->font,"A: Aktion  R1: Entfernen  Links/Rechts: Schalter  B: Zurueck",20,SCREEN_H-30,c->gray);
+    draw_text(c->renderer,c->font,"A: Aktion  X: Entfernen  Links/Rechts: Schalter  B: Zurueck",20,SCREEN_H-30,c->gray);
 }
