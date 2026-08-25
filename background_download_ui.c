@@ -158,7 +158,8 @@ void __wrap_player_render(ScreenContext *c)
     format_rate(rate,sizeof(rate),s.rate_bps);
     snprintf(line,sizeof(line),"DL %.0f%% · %s · %d/%d",
              total_percent(&s),rate,s.file_index,s.file_count);
-    draw_text(c->renderer,c->font,line,20,SCREEN_H-62,c->selected);
+    /* Oberhalb von Wiedergabe/PAUSE (y=360) und den Bedienlegenden. */
+    draw_text(c->renderer,c->font,line,20,335,c->selected);
 }
 
 void __wrap_SDL_Quit(void)
