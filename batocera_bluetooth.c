@@ -2,9 +2,12 @@
 #include "app_log.h"
 
 #include <ctype.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -72,8 +75,8 @@ int batocera_bluetooth_disconnect(const char *mac){return mac_valid(mac)?run_act
 int batocera_bluetooth_remove(const char *mac){return mac_valid(mac)?run_action("remove",mac):-1;}
 int batocera_bluetooth_pair(const char *mac){
     if(!mac_valid(mac))return -1;
-    /* trust speichert bei erfolgreichem Pairing selbst. Ein explizites save
-       ist danach unschaedlich und stellt sicher, dass Batoceras Backup aktuell ist. */
+    /* Batoceras trust speichert bei erfolgreichem Pairing bereits selbst.
+       save aktualisiert anschliessend explizit das persistente Backup. */
     if(run_action("trust",mac)!=0)return -1;
     return run_action("save",NULL);
 }
@@ -105,8 +108,12 @@ int batocera_bluetooth_start_live_devices(void)
     pid_t pid=fork();
     if(pid<0)return -1;
     if(pid==0){
-        int devnull=fileno(fopen("/dev/null","w"));
-        if(devnull>=0){dup2(devnull,STDOUT_FILENO);dup2(devnull,STDERR_FILENO);}
+        int devnull=open("/dev/null",O_WRONLY);
+        if(devnull>=0){
+            dup2(devnull,STDOUT_FILENO);
+            dup2(devnull,STDERR_FILENO);
+            if(devnull>STDERR_FILENO)close(devnull);
+        }
         execl(BATOCERA_BLUETOOTH,BATOCERA_BLUETOOTH,"start_live_devices",(char*)NULL);
         _exit(127);
     }
@@ -124,7 +131,11 @@ void batocera_bluetooth_stop_live_devices(void)
             if(r==live_pid){live_pid=-1;break;}
             usleep(50000);
         }
-        if(live_pid>0){kill(live_pid,SIGTERM);waitpid(live_pid,NULL,0);live_pid=-1;}
+        if(live_pid>0){
+            kill(live_pid,SIGTERM);
+            waitpid(live_pid,NULL,0);
+            live_pid=-1;
+        }
     }
     app_logf("Bluetooth Batocera: Live-Suche gestoppt");
 }
