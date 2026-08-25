@@ -39,6 +39,10 @@ RUN grep 'APP_VERSION "0.3.54"' config.h && \
     test -f background_download_ui.c && \
     test -f mpris_bridge.c && \
     test -f bluetooth.c && \
+    test -f batocera_bluetooth.c && \
+    test -f batocera_pair_agent.c && \
+    test -f batocera_pair_agent.h && \
+    grep -q 'DisplayYesNo' batocera_pair_agent.c && \
     test -f hfp_gateway.c && \
     test -f pbap_phonebook.c && \
     test -f battery_bluez.c && \
@@ -88,55 +92,7 @@ RUN cat > /dist/config.gpm2804.ini <<'EOF'
 [input]
 profile=custom
 dpad_mode=axis
-dpad_x_axis=0
-dpad_y_axis=1
-dpad_deadzone=16000
-
-a=2
-b=1
-x=3
-y=0
-
-l1=4
-r1=-1
-l2=-1
-r2=-1
-
-start=9
-select=8
 EOF
 
-#
-# Kontrolle
-#
-RUN echo "=== Binary ===" && \
-    readelf -h /dist/hoerspiel_player | grep -E 'Class:|Machine:' && \
-    echo "=== Libraries ===" && \
-    ls -lah /dist/lib && \
-    echo "=== Runtime dependencies ===" && \
-    ldd /dist/hoerspiel_player
-
-#
-# Starter für Batocera.
-#
-# Startet direkt aus /userdata. Nur libsystemd.so.0 wird per LD_LIBRARY_PATH bereitgestellt.
-#
-RUN cat > /dist/hoerspiel.sh <<'EOF'
-#!/bin/bash
-
-APPDIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$APPDIR" || exit 1
-
-if [ -d "$APPDIR/lib" ]; then
-  export LD_LIBRARY_PATH="$APPDIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-fi
-
-exec "$APPDIR/hoerspiel_player"
-EOF
-
-#
-# Ausgabe-Stage
-#
 FROM scratch AS export
-
-COPY --from=build /dist /
+COPY --from=build /dist/ /
