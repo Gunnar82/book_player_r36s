@@ -5,6 +5,9 @@
 #include "ui.h"
 #include "screens/downloadbrowser.h"
 #include "screens/player.h"
+#ifdef BUILD_BATOCERA
+#include "batocera_bluetooth.h"
+#endif
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -158,12 +161,16 @@ void __wrap_player_render(ScreenContext *c)
     format_rate(rate,sizeof(rate),s.rate_bps);
     snprintf(line,sizeof(line),"DL %.0f%% · %s · %d/%d",
              total_percent(&s),rate,s.file_index,s.file_count);
-    /* Oberhalb von Wiedergabe/PAUSE (y=360) und den Bedienlegenden. */
     draw_text(c->renderer,c->font,line,20,335,c->selected);
 }
 
 void __wrap_SDL_Quit(void)
 {
+#ifdef BUILD_BATOCERA
+    /* start_live_devices hat absichtlich kein Timeout. Vor dem SDL-Shutdown
+       daher immer Batoceras vorgesehenen Stop-Befehl ausfuehren. */
+    batocera_bluetooth_stop_live_devices();
+#endif
     background_download_shutdown();
     __real_SDL_Quit();
 }
