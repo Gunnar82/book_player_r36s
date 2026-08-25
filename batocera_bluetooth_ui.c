@@ -183,7 +183,7 @@ void __wrap_bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
         if(selection>=3&&selection<saved_count+3){
             BluetoothDevice *d=&saved[selection-3];
             if(b==BUTTON_A){connect_toggle(d);return;}
-            if(b==BUTTON_X){remove_saved(d);return;}
+            if(b==BUTTON_R1){remove_saved(d);return;}
         }
     }
 
@@ -250,5 +250,5 @@ void __wrap_bluetoothscreen_render(ScreenContext *c)
 
     Uint32 now=SDL_GetTicks();
     if(message[0]&&(Sint32)(message_until-now)>0)draw_text(c->renderer,c->font,message,35,SCREEN_H-65,c->selected);
-    draw_text(c->renderer,c->font,"A: Aktion  X: Entfernen  Links/Rechts: Schalter  B: Zurueck",20,SCREEN_H-30,c->gray);
+    draw_text(c->renderer,c->font,"A: Aktion  R1: Entfernen  Links/Rechts: Schalter  B: Zurueck",20,SCREEN_H-30,c->gray);
 }
