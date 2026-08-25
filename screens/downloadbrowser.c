@@ -252,7 +252,7 @@ static int progress_render(const char *folder,const char *name,int file_index,in
     snprintf(line,sizeof(line),"Downloadrate: %s",rate_text);
     draw_text(c->renderer,c->font,line,20,360,c->gray);
 
-    draw_text(c->renderer,c->font,"B: Abbrechen",20,410,c->gray);
+    draw_text(c->renderer,c->font,"B: Abbrechen   Y: Hintergrund",20,410,c->gray);
     SDL_RenderPresent(c->renderer);
     return 0;
 }
@@ -268,8 +268,6 @@ static void start_selected_download(ScreenContext *c)
     ui.last_file_index=-1;
     int rc=remote_download_selection(selected,selected_count,progress_render,&ui,err,sizeof(err));
 
-    /* Ein Download gilt als Aktivitaet. Nach Ende oder Abbruch beginnt der
-       konfigurierte Idle-Timer wieder mit seiner vollen Laufzeit. */
     if(c->idle_timer_remaining_ms)
         *c->idle_timer_remaining_ms=idle_timer_minutes>0?(Uint32)idle_timer_minutes*60000U:0U;
 

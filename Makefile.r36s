@@ -5,7 +5,10 @@ CPPFLAGS := -DBUILD_R36S
 CFLAGS := -O2 -Wall -Wextra
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
-LDFLAGS := -Wl,-rpath,'$$ORIGIN/lib' -Wl,--wrap=load_playback_config -Wl,--wrap=save_playback_config
+LDFLAGS := -Wl,-rpath,'$$ORIGIN/lib' -Wl,--wrap=load_playback_config -Wl,--wrap=save_playback_config \
+	-Wl,--wrap=remote_download_selection -Wl,--wrap=input_normalize_event \
+	-Wl,--wrap=downloadbrowser_handle_event -Wl,--wrap=downloadbrowser_render \
+	-Wl,--wrap=player_render -Wl,--wrap=SDL_Quit
 
 SOURCES := \
 	main.c \
@@ -37,6 +40,8 @@ SOURCES := \
 	hfp_gateway.c \
 	pbap_phonebook.c \
 	download.c \
+	background_download.c \
+	background_download_ui.c \
 	screens/menu.c \
 	screens/tracks.c \
 	screens/player.c \
@@ -64,7 +69,6 @@ led.o: led.c hardware_config_save.h
 
 streaming.o: streaming.c network_limits.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@
-
 download.o: download.c network_limits.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(PKG_CFLAGS) -include network_limits.h -c $< -o $@
 
