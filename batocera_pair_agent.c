@@ -116,12 +116,10 @@ int batocera_pair_agent_pair(const char *mac)
     char path[96];mac_to_path(mac,path,sizeof(path));
     app_logf("BT Pair-Agent: Pair %s",mac);
 
-    /* Some devices briefly report Connected=true before they are paired.
-       Disconnect first so BlueZ can perform the actual authentication. */
     sd_bus_call_method(bus,"org.bluez",path,"org.bluez.Device1","Disconnect",NULL,NULL,"");
     usleep(200000);
 
-    r=sd_bus_call_method_async(bus,&pair_slot,"org.bluez",path,"org.bluez.Device1","Pair",pair_reply,NULL,0,"");
+    r=sd_bus_call_method_async(bus,&pair_slot,"org.bluez",path,"org.bluez.Device1","Pair",pair_reply,NULL,"");
     if(r<0)goto fail;
 
     for(int ticks=0;ticks<900&&!__atomic_load_n(&g_pair_done,__ATOMIC_ACQUIRE);ticks++){
