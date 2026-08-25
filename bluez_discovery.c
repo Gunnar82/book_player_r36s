@@ -3,6 +3,7 @@
 
 #include <systemd/sd-bus.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -20,98 +21,49 @@ static void mac_to_path_id(const char *path,char *mac,size_t n)
     mac[i]='\0';
 }
 
-static int set_discovery_filter(sd_bus *bus)
-{
-    sd_bus_message *m=NULL;
-    sd_bus_message *reply=NULL;
-    sd_bus_error error=SD_BUS_ERROR_NULL;
-
-    int r=sd_bus_message_new_method_call(bus,&m,
-                                         "org.bluez",
-                                         "/org/bluez/hci0",
-                                         "org.bluez.Adapter1",
-                                         "SetDiscoveryFilter");
-    if(r<0)goto out;
-
-    r=sd_bus_message_open_container(m,'a',"{sv}");
-    if(r<0)goto out;
-
-    r=sd_bus_message_open_container(m,'e',"sv");
-    if(r<0)goto out;
-    r=sd_bus_message_append(m,"s","Transport");
-    if(r<0)goto out;
-    r=sd_bus_message_open_container(m,'v',"s");
-    if(r<0)goto out;
-    r=sd_bus_message_append(m,"s","auto");
-    if(r<0)goto out;
-    r=sd_bus_message_close_container(m);
-    if(r<0)goto out;
-    r=sd_bus_message_close_container(m);
-    if(r<0)goto out;
-
-    r=sd_bus_message_close_container(m);
-    if(r<0)goto out;
-
-    r=sd_bus_call(bus,m,0,&error,&reply);
-
-out:
-    if(r<0){
-        app_logf("Bluetooth R36S: SetDiscoveryFilter fehlgeschlagen (%d)",r);
-        if(error.name&&error.name[0])app_logf("BT Fehler: %s",error.name);
-        if(error.message&&error.message[0])app_logf("BT Text: %s",error.message);
-    }else{
-        app_logf("Bluetooth R36S: Discovery-Filter gesetzt (Transport=auto)");
-    }
-    sd_bus_message_unref(reply);
-    sd_bus_message_unref(m);
-    sd_bus_error_free(&error);
-    return r<0?-1:0;
-}
-
 int bluez_discovery_start(void)
 {
+#ifdef BUILD_R36S
+    /* On the R36S BlueZ stack, a direct Adapter1.StartDiscovery call does not
+       reliably populate new Device1 objects. bluetoothctl scan on does the
+       required setup first and has been verified on the device. Run it in the
+       background so the UI remains responsive. */
+    int rc=system("bluetoothctl scan on >/tmp/hoerspiel_bt_scan.log 2>&1 &");
+    if(rc!=0){
+        app_logf("Bluetooth R36S: bluetoothctl scan on konnte nicht gestartet werden (%d)",rc);
+        return -1;
+    }
+    active=1;
+    app_logf("Bluetooth R36S: Suche via bluetoothctl gestartet");
+    return 0;
+#else
     sd_bus *bus=NULL;
     int r=sd_bus_open_system(&bus);
     if(r<0)return -1;
-
-    /* bluetoothctl 'scan on' setzt vor StartDiscovery einen Discovery-Filter.
-       Auf dem R36S beginnt der Adapter ohne diesen Schritt zwar formal die
-       Discovery, liefert aber keine neuen Device1-Objekte. */
-    if(set_discovery_filter(bus)!=0){
-        sd_bus_unref(bus);
-        return -1;
-    }
-
-    r=sd_bus_call_method(bus,
-                         "org.bluez",
-                         "/org/bluez/hci0",
-                         "org.bluez.Adapter1",
-                         "StartDiscovery",
-                         NULL,NULL,"");
+    r=sd_bus_call_method(bus,"org.bluez","/org/bluez/hci0","org.bluez.Adapter1","StartDiscovery",NULL,NULL,"");
     sd_bus_unref(bus);
-    if(r<0){
-        app_logf("Bluetooth R36S: StartDiscovery fehlgeschlagen (%d)",r);
-        return -1;
-    }
-
+    if(r<0)return -1;
     active=1;
-    app_logf("Bluetooth R36S: Suche gestartet");
     return 0;
+#endif
 }
 
 void bluez_discovery_stop(void)
 {
     if(!active)return;
+#ifdef BUILD_R36S
+    /* scan off is intentionally a separate short-lived bluetoothctl process;
+       it stops the discovery started by the background scan-on client. */
+    int rc=system("bluetoothctl scan off >/dev/null 2>&1");
+    if(rc!=0)app_logf("Bluetooth R36S: bluetoothctl scan off fehlgeschlagen (%d)",rc);
+    system("pkill -f 'bluetoothctl scan on' >/dev/null 2>&1 || true");
+#else
     sd_bus *bus=NULL;
     if(sd_bus_open_system(&bus)>=0){
-        sd_bus_call_method(bus,
-                           "org.bluez",
-                           "/org/bluez/hci0",
-                           "org.bluez.Adapter1",
-                           "StopDiscovery",
-                           NULL,NULL,"");
+        sd_bus_call_method(bus,"org.bluez","/org/bluez/hci0","org.bluez.Adapter1","StopDiscovery",NULL,NULL,"");
         sd_bus_unref(bus);
     }
+#endif
     active=0;
     app_logf("Bluetooth R36S: Suche gestoppt");
 }
