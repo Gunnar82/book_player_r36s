@@ -20,6 +20,8 @@ static char live_input[4096];
 static size_t live_input_len;
 static BluetoothDevice live_cache[BT_MAX_DEVICES];
 static int live_cache_count;
+static BluetoothDevice saved_at_scan[BT_MAX_DEVICES];
+static int saved_at_scan_count;
 
 static int mac_valid(const char *mac)
 {
@@ -120,6 +122,11 @@ static void process_live_line(const char *line)
         return;
     }
     if(strcasecmp(status,"added"))return;
+
+    /* start_live_devices meldet auch bereits gespeicherte/gepairte Geraete.
+       Die Suchansicht soll aber nur Kandidaten fuer eine neue Kopplung zeigen. */
+    if(device_index(saved_at_scan,saved_at_scan_count,mac)>=0)return;
+
     if(idx<0){
         if(live_cache_count>=BT_MAX_DEVICES)return;
         idx=live_cache_count++;
@@ -157,6 +164,11 @@ static void pump_live_output(void)
 int batocera_bluetooth_start_live_devices(void)
 {
     if(live_pid>0)return 0;
+
+    /* Snapshot vor der Suche: alles, was Batocera bereits unter `list`
+       fuehrt, wird aus der Live-Suche ausgeblendet. */
+    saved_at_scan_count=batocera_bluetooth_list(saved_at_scan,BT_MAX_DEVICES);
+
     int pipefd[2];
     if(pipe(pipefd)!=0)return -1;
 
@@ -179,7 +191,8 @@ int batocera_bluetooth_start_live_devices(void)
     live_pid=pid;
     live_input_len=0;
     live_cache_count=0;
-    app_logf("Bluetooth Batocera: Live-Suche gestartet (pid=%ld)",(long)live_pid);
+    app_logf("Bluetooth Batocera: Live-Suche gestartet (pid=%ld, %d gespeicherte ausgeblendet)",
+             (long)live_pid,saved_at_scan_count);
     return 0;
 }
 
@@ -187,7 +200,6 @@ void batocera_bluetooth_stop_live_devices(void)
 {
     if(live_pid<=0&&live_fd<0)return;
 
-    /* Dies ist der von Batocera vorgesehene Abbruch fuer start_live_devices. */
     run_action("stop_live_devices",NULL);
 
     if(live_pid>0){
@@ -208,6 +220,7 @@ void batocera_bluetooth_stop_live_devices(void)
     if(live_fd>=0){close(live_fd);live_fd=-1;}
     live_input_len=0;
     live_cache_count=0;
+    saved_at_scan_count=0;
     app_logf("Bluetooth Batocera: Live-Suche gestoppt");
 }
 
