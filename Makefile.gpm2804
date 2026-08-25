@@ -8,7 +8,7 @@ LDFLAGS := -Wl,--wrap=system -Wl,--wrap=load_playback_config -Wl,--wrap=save_pla
 	-Wl,--wrap=downloadbrowser_handle_event -Wl,--wrap=downloadbrowser_render \
 	-Wl,--wrap=player_render -Wl,--wrap=SDL_Quit \
 	-Wl,--wrap=bluetooth_scan_paired_trusted -Wl,--wrap=bluetooth_connect_device \
-	-Wl,--wrap=bluetooth_autoconnect_start \
+	-Wl,--wrap=bluetooth_autoconnect_start -Wl,--wrap=batocera_set_bluetooth_enabled \
 	-Wl,--wrap=bluetoothscreen_reset -Wl,--wrap=bluetoothscreen_handle_event \
 	-Wl,--wrap=bluetoothscreen_render
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
