@@ -30,6 +30,16 @@ static void format_rate(char *out,size_t n,double bps)
     else snprintf(out,n,"%.0f KB/s",bps/1024.0);
 }
 
+static void format_tail(char *out,size_t out_size,const char *text,size_t max_chars)
+{
+    if(!out||out_size==0)return;
+    if(!text){out[0]='\0';return;}
+    size_t n=strlen(text);
+    if(n<=max_chars){snprintf(out,out_size,"%s",text);return;}
+    size_t keep=max_chars>3?max_chars-3:0;
+    snprintf(out,out_size,"...%s",text+n-keep);
+}
+
 static double total_percent(const BackgroundDownloadStatus *s)
 {
     if(!s||s->total_size<=0)return 0.0;
@@ -105,9 +115,10 @@ int __wrap_remote_download_selection(const RemoteSelection *selection,
 
 static void render_active_download(ScreenContext *c,const BackgroundDownloadStatus *s)
 {
-    char line[768],rate[32];
+    char line[768],rate[32],folder[120];
     double pct=total_percent(s);
     format_rate(rate,sizeof(rate),s->rate_bps);
+    format_tail(folder,sizeof(folder),s->folder[0]?s->folder:"/",96);
 
     draw_text(c->renderer,c->font,"Download aktiv",20,20,c->selected);
     snprintf(line,sizeof(line),"Datei %d / %d: %s",s->file_index,s->file_count,s->filename[0]?s->filename:"...");
@@ -123,7 +134,7 @@ static void render_active_download(ScreenContext *c,const BackgroundDownloadStat
     SDL_SetRenderDrawColor(c->renderer,230,210,70,255);
     SDL_RenderFillRect(c->renderer,&fill);
 
-    snprintf(line,sizeof(line),"Ordner: %s",s->folder[0]?s->folder:"/");
+    snprintf(line,sizeof(line),"Ordner: %s",folder);
     draw_text(c->renderer,c->font,line,20,210,c->gray);
     snprintf(line,sizeof(line),"Downloadrate: %s",rate);
     draw_text(c->renderer,c->font,line,20,252,c->gray);
