@@ -37,6 +37,8 @@ SOURCES := \
 	qr_render.c \
 	mpris_bridge.c \
 	bluetooth.c \
+	bluez_discovery.c \
+	batocera_pair_agent.c \
 	hfp_gateway.c \
 	pbap_phonebook.c \
 	download.c \
