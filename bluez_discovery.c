@@ -6,8 +6,17 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 static int active;
+#ifdef BUILD_R36S
+static pid_t scan_pid=-1;
+static int scan_stdin=-1;
+#endif
 
 static void mac_to_path_id(const char *path,char *mac,size_t n)
 {
@@ -21,20 +30,92 @@ static void mac_to_path_id(const char *path,char *mac,size_t n)
     mac[i]='\0';
 }
 
+#ifdef BUILD_R36S
+static int start_bluetoothctl_scan(void)
+{
+    if(scan_pid>0&&scan_stdin>=0)return 0;
+
+    int pipefd[2];
+    if(pipe(pipefd)!=0)return -1;
+
+    pid_t pid=fork();
+    if(pid<0){
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+
+    if(pid==0){
+        close(pipefd[1]);
+        if(dup2(pipefd[0],STDIN_FILENO)<0)_exit(126);
+        if(pipefd[0]!=STDIN_FILENO)close(pipefd[0]);
+
+        int logfd=open("/tmp/hoerspiel_bt_scan.log",O_WRONLY|O_CREAT|O_TRUNC,0644);
+        if(logfd>=0){
+            dup2(logfd,STDOUT_FILENO);
+            dup2(logfd,STDERR_FILENO);
+            if(logfd>STDERR_FILENO)close(logfd);
+        }
+
+        execlp("bluetoothctl","bluetoothctl",(char*)NULL);
+        _exit(127);
+    }
+
+    close(pipefd[0]);
+    scan_pid=pid;
+    scan_stdin=pipefd[1];
+
+    const char command[]="scan on\n";
+    ssize_t written=write(scan_stdin,command,sizeof(command)-1);
+    if(written!=(ssize_t)(sizeof(command)-1)){
+        app_logf("Bluetooth R36S: scan-on Kommando konnte nicht gesendet werden");
+        close(scan_stdin);
+        scan_stdin=-1;
+        kill(scan_pid,SIGTERM);
+        waitpid(scan_pid,NULL,0);
+        scan_pid=-1;
+        return -1;
+    }
+
+    app_logf("Bluetooth R36S: bluetoothctl Scan-Prozess gestartet (pid=%ld)",(long)scan_pid);
+    return 0;
+}
+
+static void stop_bluetoothctl_scan(void)
+{
+    if(scan_stdin>=0){
+        const char commands[]="scan off\nquit\n";
+        write(scan_stdin,commands,sizeof(commands)-1);
+        close(scan_stdin);
+        scan_stdin=-1;
+    }
+
+    if(scan_pid>0){
+        for(int i=0;i<20;i++){
+            int status=0;
+            pid_t r=waitpid(scan_pid,&status,WNOHANG);
+            if(r==scan_pid||r<0){scan_pid=-1;break;}
+            usleep(50000);
+        }
+        if(scan_pid>0){
+            app_logf("Bluetooth R36S: bluetoothctl beendet sich nicht, SIGTERM");
+            kill(scan_pid,SIGTERM);
+            waitpid(scan_pid,NULL,0);
+            scan_pid=-1;
+        }
+    }
+}
+#endif
+
 int bluez_discovery_start(void)
 {
 #ifdef BUILD_R36S
-    /* On the R36S BlueZ stack, a direct Adapter1.StartDiscovery call does not
-       reliably populate new Device1 objects. bluetoothctl scan on does the
-       required setup first and has been verified on the device. Run it in the
-       background so the UI remains responsive. */
-    int rc=system("bluetoothctl scan on >/tmp/hoerspiel_bt_scan.log 2>&1 &");
-    if(rc!=0){
-        app_logf("Bluetooth R36S: bluetoothctl scan on konnte nicht gestartet werden (%d)",rc);
+    if(start_bluetoothctl_scan()!=0){
+        app_logf("Bluetooth R36S: bluetoothctl Suche konnte nicht gestartet werden");
         return -1;
     }
     active=1;
-    app_logf("Bluetooth R36S: Suche via bluetoothctl gestartet");
+    app_logf("Bluetooth R36S: Suche via persistentem bluetoothctl gestartet");
     return 0;
 #else
     sd_bus *bus=NULL;
@@ -52,11 +133,7 @@ void bluez_discovery_stop(void)
 {
     if(!active)return;
 #ifdef BUILD_R36S
-    /* scan off is intentionally a separate short-lived bluetoothctl process;
-       it stops the discovery started by the background scan-on client. */
-    int rc=system("bluetoothctl scan off >/dev/null 2>&1");
-    if(rc!=0)app_logf("Bluetooth R36S: bluetoothctl scan off fehlgeschlagen (%d)",rc);
-    system("pkill -f 'bluetoothctl scan on' >/dev/null 2>&1 || true");
+    stop_bluetoothctl_scan();
 #else
     sd_bus *bus=NULL;
     if(sd_bus_open_system(&bus)>=0){
