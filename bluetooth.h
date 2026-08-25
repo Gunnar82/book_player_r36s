@@ -7,6 +7,7 @@ typedef struct {
     char mac[18];
     char name[128];
     int connected;
+    char type[16];
 } BluetoothDevice;
 
 extern int bluetooth_autoconnect;
