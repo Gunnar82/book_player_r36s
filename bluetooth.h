@@ -17,6 +17,7 @@ void bluetooth_load_config(void);
 int bluetooth_save_config(void);
 int bluetooth_scan_paired_trusted(BluetoothDevice *devices,int max_devices);
 int bluetooth_connect_device(const char *mac);
+int bluetooth_remove_device(const char *mac);
 void bluetooth_autoconnect_start(void);
 int bluetooth_adapter_present(void);
 int bluetooth_service_available(void);
