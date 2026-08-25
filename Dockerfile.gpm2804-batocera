@@ -21,7 +21,7 @@ COPY *.c *.h ./
 COPY Makefile.gpm2804 ./Makefile
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3.53"' config.h && \
+RUN grep 'APP_VERSION "0.3.54"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && \
@@ -34,6 +34,9 @@ RUN grep 'APP_VERSION "0.3.53"' config.h && \
     test -f input_config.c && \
     test -f input_config.h && \
     test -f download.c && \
+    test -f background_download.c && \
+    test -f background_download.h && \
+    test -f background_download_ui.c && \
     test -f mpris_bridge.c && \
     test -f bluetooth.c && \
     test -f hfp_gateway.c && \
