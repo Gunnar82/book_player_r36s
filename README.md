@@ -2,7 +2,7 @@
 
 Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist primär für den **R36S** entwickelt und enthält zusätzlich einen **Waveshare GPM2804 / Batocera**-Build.
 
-**Aktueller Stand: 0.3.52**
+**Aktueller Stand: 0.3.54**
 
 `main` ist die maßgebliche Quelle für stabile Projektstände. Entwicklungsregeln und die Wiederaufnahme nach Kontextverlust stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
@@ -16,7 +16,8 @@ Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist p
 - Sleep-, Idle- und Display-Timer
 - Tastensperre und persistente Nutzungsstatistik
 - Downloads aus XML-/nginx-Listings, HTTPS und optional mTLS
-- rekursive Ordnerdownloads, Mehrfachauswahl, Fortschritt und Restzeitschätzung
+- rekursive Ordnerdownloads, Mehrfachauswahl, Fortschritt, Downloadrate und Restzeitschätzung
+- GPM2804/Batocera: asynchrone Hintergrunddownloads mit Statusanzeige im Wiedergabe-Screen
 - Online-Streams aus XML-Quellen und Stream-Favoriten über `stationuuid`
 - Stream-Wiedergabe über `mpv`
 - MPRIS2, BlueZ/AVRCP, Bluetooth-Hotplug und USB-/Headset-Mediatasten
@@ -34,6 +35,8 @@ Hauptziel des Projekts. Der R36S-Build verwendet `BUILD_R36S`, die Standard-Cont
 
 Der Batocera-Build verwendet `BUILD_BATOCERA`. Der Export enthält Binary, benötigte Laufzeitbibliotheken und einen Starter. Da Batocera auf dem getesteten Gerät kein `busctl/loginctl` bereitstellt, wird Poweroff im Batocera-Build auf `/sbin/shutdown -P -h now` abgebildet. Dieser Pfad ist auf dem GPM2804 getestet.
 
+Ab 0.3.54 laufen Downloads im GPM2804/Batocera-Build über einen separaten SDL-Worker. Ein gestarteter Download kann mit `Y` in den Hintergrund geschickt werden; die Wiedergabe bleibt danach bedienbar. Beim erneuten Öffnen von **Downloads** wird ein laufender Job wieder mit aktuellem Fortschritt angezeigt.
+
 ## Projektstruktur
 
 Wichtige Dateien und Bereiche:
@@ -50,7 +53,9 @@ Wichtige Dateien und Bereiche:
 - `playback_runtime.c` – Trennung persistenter Wiedergabeeinstellungen von Session-Shutdownwerten
 - `stream_config.c/.h` – Speichern der Stream-Zertifikatseinstellung
 - `stream_favorites.c/.h` – Persistenz der Stream-Favoriten
-- `download.c/.h` – Downloadlogik
+- `download.c/.h` – synchrone Download-/Listinglogik und rekursive Auswahl
+- `background_download.c/.h` – threadsicherer asynchroner Downloadjob für GPM2804/Batocera
+- `background_download_ui.c` – Hintergrundumschaltung, Statusansicht und kompakte Player-Anzeige
 - `streaming.c/.h` – Online-Streams und mpv-Steuerung
 - `bluetooth.c/.h` – BlueZ-Erkennung, Bluetooth-Status und Autoconnect
 - `mpris_bridge.c/.h` – MPRIS2-/BlueZ-Media-Anbindung
@@ -140,6 +145,8 @@ client_key_password=
 
 Downloads unterstützen HTTPS und optional Client-Zertifikate. Der An/Aus-Schalter wird über den gemeinsamen Config-Writer gespeichert. Downloads erfolgen über `.part`-Dateien und werden erst nach erfolgreichem Abschluss ersetzt.
 
+Im Fortschrittsfenster werden aktuelle Datei, aktueller Ordner, Datei-/Gesamtfortschritt, Restzeit und Downloadrate angezeigt. Auf dem GPM2804/Batocera kann ein laufender Download mit `Y` in den Hintergrund geschickt werden. `B` bricht den Job kontrolliert ab. Während eines Hintergrunddownloads zeigt der Wiedergabe-Screen kompakt beispielsweise `DL 42% · 3.1 MB/s · 17/63`. Wird das Download-Menü während eines aktiven Jobs erneut geöffnet, erscheint wieder dessen Fortschrittsansicht. Es kann nur ein Downloadjob gleichzeitig laufen.
+
 ### Streams
 
 ```ini
@@ -174,11 +181,13 @@ Resume-/Nutzungsdaten werden atomar über temporäre Datei plus `rename()` gespe
 
 Ab 0.3.52 steht mit `config_update.c/.h` eine gemeinsame atomische Schreibschicht für INI-Sektionen zur Verfügung. Bluetooth-, Stream-, Favoriten-, Download- und LED-Einstellungen wurden schrittweise darauf umgestellt. Dadurch gibt es weniger voneinander abweichende Datei-Rewrite-Implementierungen.
 
+Der Hintergrunddownload verwendet einen einzelnen Worker-Thread und einen mutex-geschützten Status-Snapshot. SDL-Rendering und Controller-Events bleiben im UI-Thread. Beim Programmende wird ein laufender Worker kontrolliert abgebrochen und eingesammelt, bevor SDL beendet wird.
+
 Bluetooth-MAC-Adressen werden vor Shell-basierten `bluetoothctl`-Aufrufen strikt validiert.
 
-## Getesteter Stand 0.3.52
+## Getesteter Stand 0.3.54
 
-Auf Batocera/GPM2804 wurden während des Refactorings unter anderem erfolgreich geprüft:
+Auf Batocera/GPM2804 wurden während der Entwicklung unter anderem erfolgreich geprüft:
 
 - Build `make gpm2804`
 - Utility-/Config-Regressionstest
@@ -187,11 +196,16 @@ Auf Batocera/GPM2804 wurden während des Refactorings unter anderem erfolgreich 
 - Stream-Favoriten inklusive Neustart
 - Stream-Zertifikatsmodus inklusive Neustart
 - Download An/Aus inklusive Neustart
+- Download-Abbruch über die logisch konfigurierte B-Taste
+- Fortschrittsanzeige mit aktuellem Ordner und Downloadrate
+- Umschalten eines laufenden Downloads mit `Y` in den Hintergrund
+- kompakte Hintergrunddownload-Anzeige im Wiedergabe-Screen
+- erneutes Öffnen des Download-Menüs während eines aktiven Hintergrundjobs
 - persistentes `repeat_book`
 - nicht persistente Session-Werte `shutdown_after_tracks` und `shutdown_at_book_end`
 - System-Shutdown über Batocera
 
-Der R36S-Build wird weiterhin gepflegt; die LED-Konfigurationsänderung aus 0.3.52 konnte in dieser Refactoring-Runde noch nicht auf echter R36S-Hardware getestet werden.
+Der R36S-Build wird weiterhin gepflegt. Die Hintergrunddownload-Erweiterung aus 0.3.54 ist derzeit für den GPM2804/Batocera-Build eingebunden und dort auf Hardware getestet; für R36S bleibt bis zu einer gesonderten Portierung und Prüfung das bisherige synchrone Downloadverhalten maßgeblich.
 
 ## Entwicklungsworkflow
 
@@ -211,7 +225,7 @@ Die vollständigen Regeln stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
 Die README beschreibt den **aktuellen** Projektstand und ist kein chronologisches Changelog. Ältere Entwicklungsschritte bleiben über die Git-Historie sowie Changelog-, Release- und Testdateien nachvollziehbar.
 
-Aktuelle Version laut `config.h`: **0.3.52**.
+Aktuelle Version laut `config.h`: **0.3.54**.
 
 ## Lizenz und Kontakt
 
