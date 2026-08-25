@@ -35,3 +35,10 @@ void __wrap_bluetooth_autoconnect_start(void)
     waitpid(pid,NULL,0);
     app_logf("Bluetooth Autoconnect Batocera: %s",bluetooth_device_mac);
 }
+
+int __wrap_batocera_set_bluetooth_enabled(int enabled)
+{
+    int rc=enabled?batocera_bluetooth_enable():batocera_bluetooth_disable();
+    app_logf("Bluetooth Batocera: %s -> %s",enabled?"enable":"disable",rc==0?"OK":"Fehler");
+    return rc;
+}
