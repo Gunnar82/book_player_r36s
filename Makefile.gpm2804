@@ -6,7 +6,11 @@ CFLAGS := -O2 -Wall -Wextra
 LDFLAGS := -Wl,--wrap=system -Wl,--wrap=load_playback_config -Wl,--wrap=save_playback_config \
 	-Wl,--wrap=remote_download_selection -Wl,--wrap=input_normalize_event \
 	-Wl,--wrap=downloadbrowser_handle_event -Wl,--wrap=downloadbrowser_render \
-	-Wl,--wrap=player_render -Wl,--wrap=SDL_Quit
+	-Wl,--wrap=player_render -Wl,--wrap=SDL_Quit \
+	-Wl,--wrap=bluetooth_scan_paired_trusted -Wl,--wrap=bluetooth_connect_device \
+	-Wl,--wrap=bluetooth_autoconnect_start \
+	-Wl,--wrap=bluetoothscreen_reset -Wl,--wrap=bluetoothscreen_handle_event \
+	-Wl,--wrap=bluetoothscreen_render
 PKG_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 PKG_LIBS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_mixer SDL2_ttf libcurl libsystemd libqrencode)
 
@@ -38,6 +42,9 @@ SOURCES := \
 	qr_render.c \
 	mpris_bridge.c \
 	bluetooth.c \
+	batocera_bluetooth.c \
+	batocera_bluetooth_override.c \
+	batocera_bluetooth_ui.c \
 	hfp_gateway.c \
 	pbap_phonebook.c \
 	download.c \
