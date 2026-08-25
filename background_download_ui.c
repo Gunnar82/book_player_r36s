@@ -5,6 +5,9 @@
 #include "ui.h"
 #include "screens/downloadbrowser.h"
 #include "screens/player.h"
+#ifdef BUILD_BATOCERA
+#include "batocera_bluetooth.h"
+#endif
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -49,6 +52,12 @@ int __wrap_input_normalize_event(SDL_Event *e)
 {
     int rc=__real_input_normalize_event(e);
     if(!rc||!e)return rc;
+#ifdef BUILD_BATOCERA
+    /* X ist in main.c global fuer das Systemmenue reserviert. Im
+       Batocera-Bluetooth-Screen muss die lokale Entfernen-Aktion zuerst
+       die Chance bekommen, das Event intern umzusetzen. */
+    batocera_bluetooth_remap_event(e);
+#endif
     if(foreground_waiting&&e->type==SDL_JOYBUTTONDOWN&&e->jbutton.button==BUTTON_Y){
         background_requested=1;
         return 0;
@@ -158,12 +167,16 @@ void __wrap_player_render(ScreenContext *c)
     format_rate(rate,sizeof(rate),s.rate_bps);
     snprintf(line,sizeof(line),"DL %.0f%% · %s · %d/%d",
              total_percent(&s),rate,s.file_index,s.file_count);
-    /* Oberhalb von Wiedergabe/PAUSE (y=360) und den Bedienlegenden. */
     draw_text(c->renderer,c->font,line,20,335,c->selected);
 }
 
 void __wrap_SDL_Quit(void)
 {
+#ifdef BUILD_BATOCERA
+    /* start_live_devices hat absichtlich kein Timeout. Vor dem SDL-Shutdown
+       daher immer Batoceras vorgesehenen Stop-Befehl ausfuehren. */
+    batocera_bluetooth_stop_live_devices();
+#endif
     background_download_shutdown();
     __real_SDL_Quit();
 }

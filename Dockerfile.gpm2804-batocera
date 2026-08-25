@@ -39,6 +39,10 @@ RUN grep 'APP_VERSION "0.3.54"' config.h && \
     test -f background_download_ui.c && \
     test -f mpris_bridge.c && \
     test -f bluetooth.c && \
+    test -f batocera_bluetooth.c && \
+    test -f batocera_pair_agent.c && \
+    test -f batocera_pair_agent.h && \
+    grep -q 'DisplayYesNo' batocera_pair_agent.c && \
     test -f hfp_gateway.c && \
     test -f pbap_phonebook.c && \
     test -f battery_bluez.c && \
