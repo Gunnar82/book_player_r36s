@@ -13,9 +13,13 @@
 #include <unistd.h>
 
 #define BATOCERA_BLUETOOTH "/usr/bin/batocera-bluetooth"
-#define BT_LISTING_FILE "/var/run/bt_listing"
 
 static pid_t live_pid=-1;
+static int live_fd=-1;
+static char live_input[4096];
+static size_t live_input_len;
+static BluetoothDevice live_cache[BT_MAX_DEVICES];
+static int live_cache_count;
 
 static int mac_valid(const char *mac)
 {
@@ -73,10 +77,9 @@ int batocera_bluetooth_disable(void){return run_action("disable",NULL);}
 int batocera_bluetooth_connect(const char *mac){return mac_valid(mac)?run_action("connect",mac):-1;}
 int batocera_bluetooth_disconnect(const char *mac){return mac_valid(mac)?run_action("disconnect",mac):-1;}
 int batocera_bluetooth_remove(const char *mac){return mac_valid(mac)?run_action("remove",mac):-1;}
-int batocera_bluetooth_pair(const char *mac){
+int batocera_bluetooth_pair(const char *mac)
+{
     if(!mac_valid(mac))return -1;
-    /* Batoceras trust speichert bei erfolgreichem Pairing bereits selbst.
-       save aktualisiert anschliessend explizit das persistente Backup. */
     if(run_action("trust",mac)!=0)return -1;
     return run_action("save",NULL);
 }
@@ -101,70 +104,119 @@ int batocera_bluetooth_list(BluetoothDevice *devices,int max_devices)
     return count;
 }
 
+static void process_live_line(const char *line)
+{
+    char mac[18]="",name[128]="",status[16]="";
+    if(attr_value(line,"id",mac,sizeof(mac))!=0||!mac_valid(mac))return;
+    attr_value(line,"name",name,sizeof(name));
+    attr_value(line,"status",status,sizeof(status));
+
+    int idx=device_index(live_cache,live_cache_count,mac);
+    if(!strcasecmp(status,"removed")){
+        if(idx>=0){
+            for(int i=idx;i<live_cache_count-1;i++)live_cache[i]=live_cache[i+1];
+            live_cache_count--;
+        }
+        return;
+    }
+    if(strcasecmp(status,"added"))return;
+    if(idx<0){
+        if(live_cache_count>=BT_MAX_DEVICES)return;
+        idx=live_cache_count++;
+    }
+    snprintf(live_cache[idx].mac,sizeof(live_cache[idx].mac),"%s",mac);
+    snprintf(live_cache[idx].name,sizeof(live_cache[idx].name),"%s",
+             (name[0]&&strcasecmp(name,"None"))?name:mac);
+    live_cache[idx].connected=0;
+}
+
+static void pump_live_output(void)
+{
+    if(live_fd<0)return;
+    char buf[1024];
+    for(;;){
+        ssize_t n=read(live_fd,buf,sizeof(buf));
+        if(n>0){
+            for(ssize_t i=0;i<n;i++){
+                char ch=buf[i];
+                if(ch=='\n'){
+                    live_input[live_input_len]='\0';
+                    process_live_line(live_input);
+                    live_input_len=0;
+                }else if(ch!='\r'){
+                    if(live_input_len+1<sizeof(live_input))live_input[live_input_len++]=ch;
+                    else live_input_len=0;
+                }
+            }
+            continue;
+        }
+        break;
+    }
+}
+
 int batocera_bluetooth_start_live_devices(void)
 {
     if(live_pid>0)return 0;
-    unlink(BT_LISTING_FILE);
+    int pipefd[2];
+    if(pipe(pipefd)!=0)return -1;
+
     pid_t pid=fork();
-    if(pid<0)return -1;
+    if(pid<0){close(pipefd[0]);close(pipefd[1]);return -1;}
     if(pid==0){
+        close(pipefd[0]);
+        dup2(pipefd[1],STDOUT_FILENO);
         int devnull=open("/dev/null",O_WRONLY);
-        if(devnull>=0){
-            dup2(devnull,STDOUT_FILENO);
-            dup2(devnull,STDERR_FILENO);
-            if(devnull>STDERR_FILENO)close(devnull);
-        }
+        if(devnull>=0){dup2(devnull,STDERR_FILENO);if(devnull>STDERR_FILENO)close(devnull);}
+        if(pipefd[1]!=STDOUT_FILENO)close(pipefd[1]);
         execl(BATOCERA_BLUETOOTH,BATOCERA_BLUETOOTH,"start_live_devices",(char*)NULL);
         _exit(127);
     }
+
+    close(pipefd[1]);
+    int flags=fcntl(pipefd[0],F_GETFL,0);
+    if(flags>=0)fcntl(pipefd[0],F_SETFL,flags|O_NONBLOCK);
+    live_fd=pipefd[0];
     live_pid=pid;
-    app_logf("Bluetooth Batocera: Live-Suche gestartet");
+    live_input_len=0;
+    live_cache_count=0;
+    app_logf("Bluetooth Batocera: Live-Suche gestartet (pid=%ld)",(long)live_pid);
     return 0;
 }
 
 void batocera_bluetooth_stop_live_devices(void)
 {
+    if(live_pid<=0&&live_fd<0)return;
+
+    /* Dies ist der von Batocera vorgesehene Abbruch fuer start_live_devices. */
     run_action("stop_live_devices",NULL);
+
     if(live_pid>0){
-        for(int i=0;i<10;i++){
-            int status=0;pid_t r=waitpid(live_pid,&status,WNOHANG);
+        for(int i=0;i<20;i++){
+            int status=0;
+            pid_t r=waitpid(live_pid,&status,WNOHANG);
             if(r==live_pid){live_pid=-1;break;}
+            if(r<0){live_pid=-1;break;}
             usleep(50000);
         }
         if(live_pid>0){
+            app_logf("Bluetooth Batocera: stop_live_devices hat Prozess nicht beendet, SIGTERM");
             kill(live_pid,SIGTERM);
             waitpid(live_pid,NULL,0);
             live_pid=-1;
         }
     }
+    if(live_fd>=0){close(live_fd);live_fd=-1;}
+    live_input_len=0;
+    live_cache_count=0;
     app_logf("Bluetooth Batocera: Live-Suche gestoppt");
 }
 
 int batocera_bluetooth_live_devices(BluetoothDevice *devices,int max_devices)
 {
     if(!devices||max_devices<=0)return 0;
-    FILE *fp=fopen(BT_LISTING_FILE,"r");
-    if(!fp)return 0;
-    int count=0;char line[1024];
-    while(fgets(line,sizeof(line),fp)){
-        char mac[18]="",name[128]="",status[16]="";
-        if(attr_value(line,"id",mac,sizeof(mac))!=0||!mac_valid(mac))continue;
-        attr_value(line,"name",name,sizeof(name));
-        attr_value(line,"status",status,sizeof(status));
-        int idx=device_index(devices,count,mac);
-        if(!strcasecmp(status,"removed")){
-            if(idx>=0){for(int i=idx;i<count-1;i++)devices[i]=devices[i+1];count--;}
-            continue;
-        }
-        if(strcasecmp(status,"added"))continue;
-        if(idx<0){
-            if(count>=max_devices)continue;
-            idx=count++;
-        }
-        snprintf(devices[idx].mac,sizeof(devices[idx].mac),"%s",mac);
-        snprintf(devices[idx].name,sizeof(devices[idx].name),"%s",name[0]?name:mac);
-        devices[idx].connected=0;
-    }
-    fclose(fp);
+    pump_live_output();
+    int count=live_cache_count;
+    if(count>max_devices)count=max_devices;
+    for(int i=0;i<count;i++)devices[i]=live_cache[i];
     return count;
 }
