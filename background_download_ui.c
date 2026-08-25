@@ -19,10 +19,6 @@ void __real_SDL_Quit(void);
 static volatile int foreground_waiting;
 static volatile int background_requested;
 
-typedef struct {
-    ScreenContext *screen;
-} ProgressUiHead;
-
 static void format_rate(char *out,size_t n,double bps)
 {
     if(bps<1.0)snprintf(out,n,"--");
@@ -91,16 +87,6 @@ int __wrap_remote_download_selection(const RemoteSelection *selection,
                 background_download_wait();
                 if(error&&error_size)snprintf(error,error_size,"Download abgebrochen");
                 return -1;
-            }
-            /* Der bestehende Progress-Screen kennt nur B. Solange er im
-             * Vordergrund ist, ergaenzen wir dort die neue Y-Funktion. */
-            if(userdata){
-                ProgressUiHead *head=(ProgressUiHead*)userdata;
-                if(head->screen&&head->screen->renderer&&head->screen->font){
-                    draw_text(head->screen->renderer,head->screen->font,
-                              "Y: Im Hintergrund",330,410,head->screen->gray);
-                    SDL_RenderPresent(head->screen->renderer);
-                }
             }
         }
 
@@ -177,7 +163,6 @@ void __wrap_player_render(ScreenContext *c)
 
 void __wrap_SDL_Quit(void)
 {
-    /* SDL-Thread und Mutex muessen verschwinden, bevor SDL selbst beendet wird. */
     background_download_shutdown();
     __real_SDL_Quit();
 }
