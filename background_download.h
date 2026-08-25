@@ -23,20 +23,13 @@ typedef struct {
     char error[256];
 } BackgroundDownloadStatus;
 
-/* Startet genau einen Download-Job. Gibt 0 bei Erfolg, -1 bei Fehler oder
- * bereits laufendem Job zurueck. Die Auswahl wird intern kopiert. */
 int background_download_start(const RemoteSelection *selection,
                               int selection_count,
                               char *error,
                               size_t error_size);
-
-/* Liefert einen threadsicheren Snapshot des aktuellen Jobs. */
 void background_download_get_status(BackgroundDownloadStatus *status);
-
-/* Fordert einen laufenden Download zum kontrollierten Abbruch auf. */
 void background_download_cancel(void);
-
-/* Beim Programmende aufrufen. Wartet auf einen eventuell laufenden Worker. */
+void background_download_wait(void);
 void background_download_shutdown(void);
 
 #endif
