@@ -12,6 +12,17 @@ static int job_selection_count;
 static int cancel_requested;
 static Uint32 rate_sample_time;
 static long long rate_sample_bytes;
+static int rate_sample_file_index=-1;
+
+/* remote_download_selection is wrapped by background_download_ui.c for calls
+ * from the synchronous download screen. The worker must call the real
+ * implementation or it would recursively start another worker. */
+int __real_remote_download_selection(const RemoteSelection *selection,
+                                     int selection_count,
+                                     DownloadProgressFn progress,
+                                     void *userdata,
+                                     char *error,
+                                     size_t error_size);
 
 static int ensure_mutex(void)
 {
@@ -38,7 +49,12 @@ static int progress_cb(const char *folder,const char *name,
     snprintf(job.folder,sizeof(job.folder),"%s",folder?folder:"");
     snprintf(job.filename,sizeof(job.filename),"%s",name?name:"");
 
-    if(rate_sample_time==0||now-rate_sample_time>=500U){
+    if(rate_sample_file_index!=file_index){
+        rate_sample_file_index=file_index;
+        rate_sample_time=now;
+        rate_sample_bytes=file_now;
+        job.rate_bps=0.0;
+    }else if(rate_sample_time==0||now-rate_sample_time>=500U){
         if(rate_sample_time!=0&&now>rate_sample_time&&file_now>=rate_sample_bytes){
             double instant=(double)(file_now-rate_sample_bytes)*1000.0/(double)(now-rate_sample_time);
             job.rate_bps=job.rate_bps>0.0?job.rate_bps*0.65+instant*0.35:instant;
@@ -55,8 +71,8 @@ static int worker(void *unused)
 {
     (void)unused;
     char error[256]="";
-    int rc=remote_download_selection(job_selection,job_selection_count,
-                                     progress_cb,NULL,error,sizeof(error));
+    int rc=__real_remote_download_selection(job_selection,job_selection_count,
+                                            progress_cb,NULL,error,sizeof(error));
 
     SDL_LockMutex(job_mutex);
     job.result=rc;
@@ -81,7 +97,6 @@ int background_download_start(const RemoteSelection *selection,
         return -1;
     }
 
-    /* Beendeten Thread einsammeln, bevor ein neuer Job gestartet wird. */
     if(job_thread&&!job.active){
         SDL_WaitThread(job_thread,NULL);
         job_thread=NULL;
@@ -97,11 +112,10 @@ int background_download_start(const RemoteSelection *selection,
     job_selection_count=selection_count;
     memset(&job,0,sizeof(job));
     job.active=1;
-    job.file_index=0;
-    job.file_count=0;
     cancel_requested=0;
     rate_sample_time=0;
     rate_sample_bytes=0;
+    rate_sample_file_index=-1;
     SDL_UnlockMutex(job_mutex);
 
     job_thread=SDL_CreateThread(worker,"background-download",NULL);
@@ -136,14 +150,19 @@ void background_download_cancel(void)
     SDL_UnlockMutex(job_mutex);
 }
 
-void background_download_shutdown(void)
+void background_download_wait(void)
 {
-    if(!job_mutex)return;
-    background_download_cancel();
     if(job_thread){
         SDL_WaitThread(job_thread,NULL);
         job_thread=NULL;
     }
+}
+
+void background_download_shutdown(void)
+{
+    if(!job_mutex)return;
+    background_download_cancel();
+    background_download_wait();
     SDL_DestroyMutex(job_mutex);
     job_mutex=NULL;
 }
