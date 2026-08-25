@@ -10,16 +10,18 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Linker wrappers let the existing screens keep their stable code while the
- * asynchronous job is layered around the few calls that need different
- * behaviour. */
 int __real_input_normalize_event(SDL_Event *e);
 void __real_downloadbrowser_handle_event(ScreenContext *c,const SDL_Event *e);
 void __real_downloadbrowser_render(ScreenContext *c);
 void __real_player_render(ScreenContext *c);
+void __real_SDL_Quit(void);
 
 static volatile int foreground_waiting;
 static volatile int background_requested;
+
+typedef struct {
+    ScreenContext *screen;
+} ProgressUiHead;
 
 static void format_rate(char *out,size_t n,double bps)
 {
@@ -43,15 +45,11 @@ int __wrap_input_normalize_event(SDL_Event *e)
     if(!rc||!e)return rc;
     if(foreground_waiting&&e->type==SDL_JOYBUTTONDOWN&&e->jbutton.button==BUTTON_Y){
         background_requested=1;
-        return 0; /* progress_render must not consume Y for anything else */
+        return 0;
     }
     return rc;
 }
 
-/* Existing downloadbrowser.c calls remote_download_selection synchronously.
- * We turn that call into a worker job, but keep feeding its existing progress
- * renderer while the user stays on the foreground progress screen. Y simply
- * releases the UI while the worker continues. */
 int __wrap_remote_download_selection(const RemoteSelection *selection,
                                      int selection_count,
                                      DownloadProgressFn progress,
@@ -83,6 +81,16 @@ int __wrap_remote_download_selection(const RemoteSelection *selection,
                 background_download_wait();
                 if(error&&error_size)snprintf(error,error_size,"Download abgebrochen");
                 return -1;
+            }
+            /* Der bestehende Progress-Screen kennt nur B. Solange er im
+             * Vordergrund ist, ergaenzen wir dort die neue Y-Funktion. */
+            if(userdata){
+                ProgressUiHead *head=(ProgressUiHead*)userdata;
+                if(head->screen&&head->screen->renderer&&head->screen->font){
+                    draw_text(head->screen->renderer,head->screen->font,
+                              "Y: Im Hintergrund",330,410,head->screen->gray);
+                    SDL_RenderPresent(head->screen->renderer);
+                }
             }
         }
 
@@ -153,6 +161,12 @@ void __wrap_player_render(ScreenContext *c)
     format_rate(rate,sizeof(rate),s.rate_bps);
     snprintf(line,sizeof(line),"DL %.0f%% · %s · %d/%d",
              total_percent(&s),rate,s.file_index,s.file_count);
-    /* Compact status above the normal bottom help line. */
     draw_text(c->renderer,c->font,line,20,SCREEN_H-62,c->selected);
+}
+
+void __wrap_SDL_Quit(void)
+{
+    /* SDL-Thread und Mutex muessen verschwinden, bevor SDL selbst beendet wird. */
+    background_download_shutdown();
+    __real_SDL_Quit();
 }
