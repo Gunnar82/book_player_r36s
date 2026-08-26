@@ -188,18 +188,23 @@ static int progress_render(const char *folder,const char *name,int file_index,in
         ui->last_file_index=file_index;
         snprintf(ui->last_name,sizeof(ui->last_name),"%s",name?name:"");
         ui->file_start=now;
+    }
+
+    /* Use total_now for the rate. It is cumulative for the complete job and
+       therefore does not reset to zero whenever the next file begins. */
+    if(ui->rate_sample_time==0){
         ui->rate_sample_time=now;
-        ui->rate_sample_bytes=file_now;
-        ui->rate_bps=0.0;
+        ui->rate_sample_bytes=total_now;
     }else if(now-ui->rate_sample_time>=500U){
         Uint32 dt=now-ui->rate_sample_time;
-        long long db=file_now-ui->rate_sample_bytes;
+        long long db=total_now-ui->rate_sample_bytes;
         if(db>=0&&dt>0){
             double instant=(double)db*1000.0/(double)dt;
-            ui->rate_bps=ui->rate_bps>0.0?ui->rate_bps*0.65+instant*0.35:instant;
+            if(instant>0.0)
+                ui->rate_bps=ui->rate_bps>0.0?ui->rate_bps*0.65+instant*0.35:instant;
         }
         ui->rate_sample_time=now;
-        ui->rate_sample_bytes=file_now;
+        ui->rate_sample_bytes=total_now;
     }
 
     double file_pct=file_total>0?100.0*(double)file_now/(double)file_total:0.0;
