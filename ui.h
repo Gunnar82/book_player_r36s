@@ -4,17 +4,10 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-/* Rendert Text an Position (x,y) in gegebener Farbe. Tut nichts,
-   falls font == NULL (z.B. Font konnte nicht geladen werden). */
 void draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
-                int x, int y, SDL_Color color);
-
-/* Wie draw_text, aber rechtsbündig: "right_x" ist die rechte Kante,
-   an der der Text enden soll. */
+               int x, int y, SDL_Color color);
 void draw_text_right(SDL_Renderer *r, TTF_Font *font, const char *text,
-                       int right_x, int y, SDL_Color color);
-
-/* Formatiert Sekunden als "m:ss" bzw. "h:mm:ss". */
+                     int right_x, int y, SDL_Color color);
 void format_time(double seconds, char *out, size_t size);
 
 int menu_font_pixels(void);
@@ -22,5 +15,14 @@ int menu_line_height(void);
 void menu_font_apply(TTF_Font *font);
 void menu_font_restore(TTF_Font *font);
 
+/* Gemeinsame Akzentfarbe fuer Auswahltexte und gelbe UI-Balken. */
+const char *ui_accent_name(void);
+void ui_accent_cycle(int delta);
+SDL_Color ui_accent_color(void);
+int ui_set_render_draw_color(SDL_Renderer *renderer, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+
+#ifndef UI_IMPLEMENTATION
+#define SDL_SetRenderDrawColor(renderer,r,g,b,a) ui_set_render_draw_color((renderer),(r),(g),(b),(a))
+#endif
 
 #endif /* UI_H */
