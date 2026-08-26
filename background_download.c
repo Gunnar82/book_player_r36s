@@ -12,7 +12,6 @@ static int job_selection_count;
 static int cancel_requested;
 static Uint32 rate_sample_time;
 static long long rate_sample_bytes;
-static int rate_sample_file_index=-1;
 
 /* remote_download_selection is wrapped by background_download_ui.c for calls
  * from the synchronous download screen. The worker must call the real
@@ -49,18 +48,21 @@ static int progress_cb(const char *folder,const char *name,
     snprintf(job.folder,sizeof(job.folder),"%s",folder?folder:"");
     snprintf(job.filename,sizeof(job.filename),"%s",name?name:"");
 
-    if(rate_sample_file_index!=file_index){
-        rate_sample_file_index=file_index;
+    /* Measure against the cumulative download byte counter.  Unlike file_now,
+       total_now does not jump back to zero when the next file starts, so the
+       displayed rate remains useful across file boundaries. */
+    if(rate_sample_time==0){
         rate_sample_time=now;
-        rate_sample_bytes=file_now;
-        job.rate_bps=0.0;
-    }else if(rate_sample_time==0||now-rate_sample_time>=500U){
-        if(rate_sample_time!=0&&now>rate_sample_time&&file_now>=rate_sample_bytes){
-            double instant=(double)(file_now-rate_sample_bytes)*1000.0/(double)(now-rate_sample_time);
-            job.rate_bps=job.rate_bps>0.0?job.rate_bps*0.65+instant*0.35:instant;
+        rate_sample_bytes=total_now;
+    }else if(now-rate_sample_time>=500U){
+        if(now>rate_sample_time&&total_now>=rate_sample_bytes){
+            double instant=(double)(total_now-rate_sample_bytes)*1000.0/
+                           (double)(now-rate_sample_time);
+            if(instant>0.0)
+                job.rate_bps=job.rate_bps>0.0?job.rate_bps*0.65+instant*0.35:instant;
         }
         rate_sample_time=now;
-        rate_sample_bytes=file_now;
+        rate_sample_bytes=total_now;
     }
     int cancel=cancel_requested;
     SDL_UnlockMutex(job_mutex);
@@ -115,7 +117,6 @@ int background_download_start(const RemoteSelection *selection,
     cancel_requested=0;
     rate_sample_time=0;
     rate_sample_bytes=0;
-    rate_sample_file_index=-1;
     SDL_UnlockMutex(job_mutex);
 
     job_thread=SDL_CreateThread(worker,"background-download",NULL);
