@@ -24,11 +24,17 @@ static int accent_index=0;
 static int accent_loaded=0;
 
 static void trim_line(char *s){
-    if(!s)return;char *p=s;while(*p==' '||*p=='\t'||*p=='\r'||*p=='\n')p++;
-    if(p!=s)memmove(s,p,strlen(p)+1);size_t n=strlen(s);while(n&& (s[n-1]==' '||s[n-1]=='\t'||s[n-1]=='\r'||s[n-1]=='\n'))s[--n]='\0';
+    if(!s) return;
+    char *p=s;
+    while(*p==' '||*p=='\t'||*p=='\r'||*p=='\n') p++;
+    if(p!=s) memmove(s,p,strlen(p)+1);
+    size_t n=strlen(s);
+    while(n&&(s[n-1]==' '||s[n-1]=='\t'||s[n-1]=='\r'||s[n-1]=='\n')) s[--n]='\0';
 }
 static void accent_load(void){
-    if(accent_loaded)return;accent_loaded=1;accent_index=0;
+    if(accent_loaded) return;
+    accent_loaded=1;
+    accent_index=0;
     FILE *fp=fopen(get_storage_config_path(),"r");if(!fp)return;
     char line[1200];int in_ui=0;
     while(fgets(line,sizeof(line),fp)){
@@ -54,9 +60,13 @@ static int accent_save(void){
     if(in_ui&&!wrote)fprintf(fp,"accent_color=%s\n",accents[accent_index].key);
     else if(!have_ui){if(count&&lines[count-1][0]&&lines[count-1][strlen(lines[count-1])-1]!='\n')fputc('\n',fp);fprintf(fp,"\n[ui]\naccent_color=%s\n",accents[accent_index].key);}
     if(fflush(fp)!=0||fsync(fileno(fp))!=0){fclose(fp);unlink(tmp_path);goto fail;}if(fclose(fp)!=0){unlink(tmp_path);goto fail;}if(rename(tmp_path,path)!=0){unlink(tmp_path);goto fail;}
-    for(size_t i=0;i<count;i++)free(lines[i]);free(lines);return 0;
+    for(size_t i=0;i<count;i++) free(lines[i]);
+    free(lines);
+    return 0;
 fail:
-    for(size_t i=0;i<count;i++)free(lines[i]);free(lines);return -1;
+    for(size_t i=0;i<count;i++) free(lines[i]);
+    free(lines);
+    return -1;
 }
 SDL_Color ui_accent_color(void){accent_load();return accents[accent_index].color;}
 const char *ui_accent_name(void){accent_load();return accents[accent_index].name;}
