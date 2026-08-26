@@ -14,7 +14,6 @@ static const char *items[] = {
     "Einstellungen",
     "Downloads",
     "Streams",
-    "Akzentfarbe",
     "Beenden",
     "Herunterfahren"
 };
@@ -49,9 +48,8 @@ static void activate(ScreenContext *c)
         case 2:
             if (network_connection_active() && stream_xml_url[0]) { streams_reset(); *c->screen = SCREEN_STREAMS; }
             break;
-        case 3: ui_accent_cycle(1); break;
-        case 4: *c->running = 0; break;
-        case 5: c->shutdown_fn(c->music); *c->running = 0; break;
+        case 3: *c->running = 0; break;
+        case 4: c->shutdown_fn(c->music); *c->running = 0; break;
     }
 }
 
@@ -60,10 +58,9 @@ void systemmenu_handle_event(ScreenContext *c, const SDL_Event *e)
     if (e->type == SDL_JOYBUTTONDOWN) {
         int b = e->jbutton.button;
         if (b == BUTTON_B || b == BUTTON_DPAD_LEFT) {
-            if(selection==3 && b==BUTTON_DPAD_LEFT){ui_accent_cycle(-1);return;}
             *c->screen = SCREEN_PLAYER; return;
         }
-        if (b == BUTTON_DPAD_RIGHT) { if(selection==3){ui_accent_cycle(1);return;} activate(c); return; }
+        if (b == BUTTON_DPAD_RIGHT) { activate(c); return; }
         if (b == BUTTON_DPAD_UP) { move_selection(-1); return; }
         if (b == BUTTON_DPAD_DOWN) { move_selection(1); return; }
         if (b == BUTTON_A) { activate(c); return; }
@@ -97,8 +94,6 @@ void systemmenu_render(ScreenContext *c)
             if (!stream_xml_url[0]) snprintf(label,sizeof(label),"Streams  [XML fehlt]");
             else if (!network_ok) snprintf(label,sizeof(label),"Streams  [kein Netzwerk]");
             else snprintf(label,sizeof(label),"%s",items[i]);
-        } else if(i==3) {
-            snprintf(label,sizeof(label),"Akzentfarbe  < %s >",ui_accent_name());
         } else snprintf(label,sizeof(label),"%s",items[i]);
 
         SDL_Color col = disabled ? c->gray : ((i == selection) ? c->selected : c->white);
