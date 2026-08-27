@@ -22,7 +22,7 @@ COPY *.c *.h ./
 COPY Makefile.r36s ./Makefile
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3.56"' config.h && \
+RUN grep 'APP_VERSION "0.3.57"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'mpris_bridge_init' mpris_bridge.h && \
@@ -32,6 +32,7 @@ RUN grep 'APP_VERSION "0.3.56"' config.h && \
     test -f download.c && \
     test -f mpris_bridge.c && \
     test -f bluetooth.c && \
+    test -f bluetooth_audio_sink.c && \
     test -f hfp_gateway.c && \
     test -f pbap_phonebook.c && \
     test -f battery_bluez.c && \

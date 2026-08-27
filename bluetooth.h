@@ -1,6 +1,8 @@
 #ifndef BLUETOOTH_H
 #define BLUETOOTH_H
 
+#include <stddef.h>
+
 #define BT_MAX_DEVICES 16
 
 typedef struct {
@@ -24,5 +26,10 @@ int bluetooth_service_available(void);
 int bluetooth_adapter_powered(void);
 void bluetooth_log_status(void);
 void bluetooth_log_if_changed(void);
+
+/* Gemeinsame PulseAudio/PipeWire-Sink-Regelung fuer R36S und GPM2804.
+   Erkennt sowohl bluez_sink.* als auch bluez_output.*. */
+int bluetooth_audio_sink_get(char *sink_name,size_t sink_name_size,int *volume_percent);
+int bluetooth_audio_sink_set_volume(const char *sink_name,int volume_percent);
 
 #endif

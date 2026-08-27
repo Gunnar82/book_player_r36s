@@ -21,7 +21,7 @@ COPY *.c *.h ./
 COPY Makefile.gpm2804 ./Makefile
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3.56"' config.h && \
+RUN grep 'APP_VERSION "0.3.57"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && \
@@ -39,6 +39,7 @@ RUN grep 'APP_VERSION "0.3.56"' config.h && \
     test -f background_download_ui.c && \
     test -f mpris_bridge.c && \
     test -f bluetooth.c && \
+    test -f bluetooth_audio_sink.c && \
     test -f batocera_bluetooth.c && \
     test -f batocera_pair_agent.c && \
     test -f batocera_pair_agent.h && \
