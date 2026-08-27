@@ -43,6 +43,7 @@ SOURCES := \
 	qr_render.c \
 	mpris_bridge.c \
 	bluetooth.c \
+	bluetooth_audio_sink.c \
 	bluez_discovery.c \
 	batocera_bluetooth.c \
 	batocera_pair_agent.c \
