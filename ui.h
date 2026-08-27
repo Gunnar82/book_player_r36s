@@ -8,6 +8,7 @@ void draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
                int x, int y, SDL_Color color);
 void draw_text_right(SDL_Renderer *r, TTF_Font *font, const char *text,
                      int right_x, int y, SDL_Color color);
+void draw_scrollbar(SDL_Renderer *r,int x,int y,int height,int total_items,int visible_items,int first_visible);
 void format_time(double seconds, char *out, size_t size);
 
 int menu_font_pixels(void);
