@@ -38,18 +38,12 @@ int ui_set_render_draw_color(SDL_Renderer *renderer,Uint8 r,Uint8 g,Uint8 b,Uint
 int menu_font_pixels(void){static const int sizes[]={18,20,26,32};int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return sizes[i];}
 int menu_line_height(void){return menu_font_pixels()+8;}
 static int menu_font_index(void){int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return i;}
-static TTF_Font *resolve_font(TTF_Font *fallback){if(!menu_font_active)return fallback;int i=menu_font_index();if(!menu_fonts[i])menu_fonts[i]=TTF_OpenFont(FONT_PATH,menu_font_pixels());return menu_fonts[i]?menu_fonts[i]:fallback;}
+TTF_Font *menu_font_get(TTF_Font *fallback){int i=menu_font_index();if(!menu_fonts[i])menu_fonts[i]=TTF_OpenFont(FONT_PATH,menu_font_pixels());return menu_fonts[i]?menu_fonts[i]:fallback;}
+static TTF_Font *resolve_font(TTF_Font *fallback){return menu_font_active?menu_font_get(fallback):fallback;}
 void menu_font_apply(TTF_Font *font){(void)font;menu_font_active=1;}
 void menu_font_restore(TTF_Font *font){(void)font;menu_font_active=0;}
 
 void draw_text(SDL_Renderer *r,TTF_Font *font,const char *text,int x,int y,SDL_Color color){font=resolve_font(font);if(!font)return;color=substitute_accent(color);SDL_Surface *s=TTF_RenderUTF8_Blended(font,text,color);if(!s)return;SDL_Texture *t=SDL_CreateTextureFromSurface(r,s);if(t){SDL_Rect dst={x,y,s->w,s->h};SDL_RenderCopy(r,t,NULL,&dst);SDL_DestroyTexture(t);}SDL_FreeSurface(s);}
 void draw_text_right(SDL_Renderer *r,TTF_Font *font,const char *text,int right_x,int y,SDL_Color color){font=resolve_font(font);if(!font)return;int w=0,h=0;if(TTF_SizeUTF8(font,text,&w,&h)!=0)return;draw_text(r,font,text,right_x-w,y,color);}
-void draw_scrollbar(SDL_Renderer *r,int x,int y,int height,int total_items,int visible_items,int first_visible){
-    if(!r||height<=0||total_items<=visible_items||visible_items<=0)return;
-    int max_first=total_items-visible_items;if(first_visible<0)first_visible=0;if(first_visible>max_first)first_visible=max_first;
-    SDL_Rect track={x,y,5,height};SDL_SetRenderDrawColor(r,70,70,80,255);SDL_RenderFillRect(r,&track);
-    int thumb_h=(height*visible_items)/total_items;if(thumb_h<18)thumb_h=18;if(thumb_h>height)thumb_h=height;
-    int travel=height-thumb_h;int thumb_y=y+(max_first>0?(travel*first_visible)/max_first:0);
-    SDL_Rect thumb={x,thumb_y,5,thumb_h};SDL_Color a=ui_accent_color();SDL_SetRenderDrawColor(r,a.r,a.g,a.b,255);SDL_RenderFillRect(r,&thumb);
-}
+void draw_scrollbar(SDL_Renderer *r,int x,int y,int height,int total_items,int visible_items,int first_visible){if(!r||height<=0||total_items<=visible_items||visible_items<=0)return;int max_first=total_items-visible_items;if(first_visible<0)first_visible=0;if(first_visible>max_first)first_visible=max_first;SDL_Rect track={x,y,5,height};SDL_SetRenderDrawColor(r,70,70,80,255);SDL_RenderFillRect(r,&track);int thumb_h=(height*visible_items)/total_items;if(thumb_h<18)thumb_h=18;if(thumb_h>height)thumb_h=height;int travel=height-thumb_h;int thumb_y=y+(max_first>0?(travel*first_visible)/max_first:0);SDL_Rect thumb={x,thumb_y,5,thumb_h};SDL_Color a=ui_accent_color();SDL_SetRenderDrawColor(r,a.r,a.g,a.b,255);SDL_RenderFillRect(r,&thumb);}
 void format_time(double seconds,char *out,size_t size){if(seconds<0)seconds=0;int total=(int)seconds;int h=total/3600;int m=(total%3600)/60;int s=total%60;if(h)snprintf(out,size,"%d:%02d:%02d",h,m,s);else snprintf(out,size,"%02d:%02d",m,s);}
