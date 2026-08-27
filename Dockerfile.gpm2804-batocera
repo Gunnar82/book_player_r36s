@@ -1,11 +1,22 @@
 FROM debian:bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential make libsdl2-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-    libcurl4-openssl-dev libsystemd-dev libqrencode-dev ca-certificates \
-    pkg-config binutils libc-bin && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    make \
+    libsdl2-dev \
+    libsdl2-mixer-dev \
+    libsdl2-ttf-dev \
+    libcurl4-openssl-dev \
+    libsystemd-dev \
+    libqrencode-dev \
+    ca-certificates \
+    pkg-config \
+    binutils \
+    libc-bin \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
+
 COPY *.c *.h ./
 COPY Makefile.gpm2804 ./Makefile
 COPY screens ./screens
@@ -20,27 +31,64 @@ RUN grep 'APP_VERSION "0.3.57"' config.h && \
     grep -q 'SCREEN_DOWNLOADS' screens.h && \
     grep -q 'input_config_load' input_config.h && \
     grep -q 'input_normalize_event' input_config.h && \
-    test -f input_config.c && test -f input_config.h && \
-    test -f download.c && test -f background_download.c && \
-    test -f background_download.h && test -f background_download_ui.c && \
-    test -f mpris_bridge.c && test -f bluetooth.c && \
-    test -f bluetooth_audio_sink.c && test -f batocera_bluetooth.c && \
-    test -f batocera_pair_agent.c && test -f batocera_pair_agent.h && \
+    test -f input_config.c && \
+    test -f input_config.h && \
+    test -f download.c && \
+    test -f background_download.c && \
+    test -f background_download.h && \
+    test -f background_download_ui.c && \
+    test -f mpris_bridge.c && \
+    test -f bluetooth.c && \
+    test -f bluetooth_audio_sink.c && \
+    test -f batocera_bluetooth.c && \
+    test -f batocera_pair_agent.c && \
+    test -f batocera_pair_agent.h && \
     grep -q 'DisplayYesNo' batocera_pair_agent.c && \
-    test -f hfp_gateway.c && test -f pbap_phonebook.c && test -f battery_bluez.c && \
+    test -f hfp_gateway.c && \
+    test -f pbap_phonebook.c && \
+    test -f battery_bluez.c && \
     grep -q 'org.bluez.Device1' bluetooth.c && \
-    test -f screens/bluetooth.c && test -f screens/downloadsettings.c && \
-    test -f screens/streamsettings.c && test -f media_feedback.c && \
-    test -f app_log.c && test -f screens/downloadbrowser.c && test -f screens/logview.c
+    test -f screens/bluetooth.c && \
+    test -f screens/downloadsettings.c && \
+    test -f screens/streamsettings.c && \
+    test -f media_feedback.c && \
+    test -f app_log.c && \
+    test -f screens/downloadbrowser.c && \
+    test -f screens/logview.c
 
 RUN make clean && make
+
 RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
+
+#
+# Portables Batocera-Paket erzeugen
+#
 RUN mkdir -p /dist/lib
+
 RUN cp /build/hoerspiel_player /dist/hoerspiel_player
-RUN ldd /build/hoerspiel_player | awk ' /=> \// { print $3 } /^\// { print $1 } ' | sort -u > /tmp/libs.txt && \
-    while read lib; do cp -L "$lib" /dist/lib/; done < /tmp/libs.txt
+
+#
+# Alle dynamischen Abhängigkeiten einsammeln
+#
+RUN ldd /build/hoerspiel_player | \
+    awk ' \
+        /=> \// { print $3 } \
+        /^\//   { print $1 } \
+    ' | \
+    sort -u > /tmp/libs.txt && \
+    while read lib; do \
+        cp -L "$lib" /dist/lib/; \
+    done < /tmp/libs.txt
+
+#
+# ARM64 ELF Loader ebenfalls mitnehmen
+#
 RUN cp -L /lib/ld-linux-aarch64.so.1 /dist/lib/ld-linux-aarch64.so.1
 
+#
+# Beispiel-Konfiguration für den GPM2804/Batocera-Controller beilegen.
+# Die R36S-Standardwerte bleiben im Player der Fallback.
+#
 RUN cat > /dist/config.gpm2804.ini <<'EOF'
 [input]
 profile=custom
@@ -63,19 +111,37 @@ start=9
 select=8
 EOF
 
-RUN echo "=== Binary ===" && readelf -h /dist/hoerspiel_player | grep -E 'Class:|Machine:' && \
-    echo "=== Libraries ===" && ls -lah /dist/lib && \
-    echo "=== Runtime dependencies ===" && ldd /dist/hoerspiel_player
+#
+# Kontrolle
+#
+RUN echo "=== Binary ===" && \
+    readelf -h /dist/hoerspiel_player | grep -E 'Class:|Machine:' && \
+    echo "=== Libraries ===" && \
+    ls -lah /dist/lib && \
+    echo "=== Runtime dependencies ===" && \
+    ldd /dist/hoerspiel_player
 
+#
+# Starter für Batocera.
+#
+# Startet direkt aus /userdata. Nur libsystemd.so.0 wird per LD_LIBRARY_PATH bereitgestellt.
+#
 RUN cat > /dist/hoerspiel.sh <<'EOF'
 #!/bin/bash
+
 APPDIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$APPDIR" || exit 1
+
 if [ -d "$APPDIR/lib" ]; then
   export LD_LIBRARY_PATH="$APPDIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
+
 exec "$APPDIR/hoerspiel_player"
 EOF
 
+#
+# Ausgabe-Stage
+#
 FROM scratch AS export
+
 COPY --from=build /dist /
