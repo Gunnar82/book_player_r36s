@@ -22,7 +22,7 @@ COPY *.c *.h ./
 COPY Makefile.r36s ./Makefile
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3.56"' config.h && \
+RUN grep 'APP_VERSION "0.3.57"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'mpris_bridge_init' mpris_bridge.h && \
@@ -32,6 +32,7 @@ RUN grep 'APP_VERSION "0.3.56"' config.h && \
     test -f download.c && \
     test -f mpris_bridge.c && \
     test -f bluetooth.c && \
+    test -f bluetooth_audio_sink.c && \
     test -f hfp_gateway.c && \
     test -f pbap_phonebook.c && \
     test -f battery_bluez.c && \
@@ -47,45 +48,17 @@ RUN grep 'APP_VERSION "0.3.56"' config.h && \
 RUN make clean && make
 RUN readelf -h /build/hoerspiel_player | grep -E 'Class:|Machine:'
 
-#
-# R36S-Ausgabepaket erzeugen
-#
 RUN mkdir -p /dist/lib
-
 RUN cp /build/hoerspiel_player /dist/hoerspiel_player
-
-#
-# Direkte dynamische Laufzeitabhaengigkeiten einsammeln.
-# Gleiche Strategie wie beim GPM2804/Batocera-Build.
-#
 RUN ldd /build/hoerspiel_player | \
-    awk ' \
-        /=> \\// { print $3 } \
-        /^\\//   { print $1 } \
-    ' | \
+    awk ' /=> \\// { print $3 } /^\\// { print $1 } ' | \
     sort -u > /tmp/libs.txt && \
-    while read lib; do \
-        cp -L "$lib" /dist/lib/; \
-    done < /tmp/libs.txt
-
-#
-# ARM64 ELF Loader ebenfalls mitnehmen
-#
+    while read lib; do cp -L "$lib" /dist/lib/; done < /tmp/libs.txt
 RUN cp -L /lib/ld-linux-aarch64.so.1 /dist/lib/ld-linux-aarch64.so.1
-
-#
-# Kontrolle des R36S-Pakets
-#
 RUN echo "=== Binary ===" && \
     readelf -h /dist/hoerspiel_player | grep -E 'Class:|Machine:' && \
-    echo "=== Libraries ===" && \
-    ls -lah /dist/lib && \
-    echo "=== Runtime dependencies ===" && \
-    ldd /dist/hoerspiel_player
+    echo "=== Libraries ===" && ls -lah /dist/lib && \
+    echo "=== Runtime dependencies ===" && ldd /dist/hoerspiel_player
 
-#
-# Ausgabe-Stage für `docker build --output`
-#
 FROM scratch AS export
-
 COPY --from=build /dist /
