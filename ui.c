@@ -8,6 +8,7 @@
 #include "ui.h"
 #include "state.h"
 #include "storage.h"
+#include "config.h"
 
 typedef struct { const char *key; const char *name; SDL_Color color; } AccentDef;
 static const AccentDef accents[] = {
@@ -22,6 +23,8 @@ static const AccentDef accents[] = {
 #define ACCENT_COUNT ((int)(sizeof(accents)/sizeof(accents[0])))
 static int accent_index=0;
 static int accent_loaded=0;
+static TTF_Font *menu_fonts[4]={NULL,NULL,NULL,NULL};
+static int menu_font_active=0;
 
 static void trim_line(char *s){if(!s)return;char *p=s;while(*p==' '||*p=='\t'||*p=='\r'||*p=='\n')p++;if(p!=s)memmove(s,p,strlen(p)+1);size_t n=strlen(s);while(n&&(s[n-1]==' '||s[n-1]=='\t'||s[n-1]=='\r'||s[n-1]=='\n'))s[--n]='\0';}
 static void accent_load(void){if(accent_loaded)return;accent_loaded=1;accent_index=0;FILE *fp=fopen(get_storage_config_path(),"r");if(!fp)return;char line[1200];int in_ui=0;while(fgets(line,sizeof(line),fp)){trim_line(line);if(!line[0]||line[0]=='#'||line[0]==';')continue;if(line[0]=='['){in_ui=!strcmp(line,"[ui]");continue;}if(!in_ui)continue;if(!strncmp(line,"accent_color=",13)){char *v=line+13;trim_line(v);for(int i=0;i<ACCENT_COUNT;i++)if(!strcasecmp(v,accents[i].key)||!strcasecmp(v,accents[i].name)){accent_index=i;break;}break;}}fclose(fp);}
@@ -32,8 +35,15 @@ void ui_accent_cycle(int delta){accent_load();accent_index=(accent_index+delta)%
 static SDL_Color substitute_accent(SDL_Color color){if((color.r==255&&color.g==220&&color.b==80)||(color.r==230&&color.g==210&&color.b==70)){SDL_Color a=ui_accent_color();a.a=color.a;return a;}return color;}
 int ui_set_render_draw_color(SDL_Renderer *renderer,Uint8 r,Uint8 g,Uint8 b,Uint8 a){SDL_Color c={r,g,b,a};c=substitute_accent(c);return SDL_SetRenderDrawColor(renderer,c.r,c.g,c.b,c.a);}
 
-void draw_text(SDL_Renderer *r,TTF_Font *font,const char *text,int x,int y,SDL_Color color){if(!font)return;color=substitute_accent(color);SDL_Surface *s=TTF_RenderUTF8_Blended(font,text,color);if(!s)return;SDL_Texture *t=SDL_CreateTextureFromSurface(r,s);if(t){SDL_Rect dst={x,y,s->w,s->h};SDL_RenderCopy(r,t,NULL,&dst);SDL_DestroyTexture(t);}SDL_FreeSurface(s);}
-void draw_text_right(SDL_Renderer *r,TTF_Font *font,const char *text,int right_x,int y,SDL_Color color){if(!font)return;int w=0,h=0;if(TTF_SizeUTF8(font,text,&w,&h)!=0)return;draw_text(r,font,text,right_x-w,y,color);}
+int menu_font_pixels(void){static const int sizes[]={18,20,26,32};int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return sizes[i];}
+int menu_line_height(void){return menu_font_pixels()+8;}
+static int menu_font_index(void){int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return i;}
+static TTF_Font *resolve_font(TTF_Font *fallback){if(!menu_font_active)return fallback;int i=menu_font_index();if(!menu_fonts[i])menu_fonts[i]=TTF_OpenFont(FONT_PATH,menu_font_pixels());return menu_fonts[i]?menu_fonts[i]:fallback;}
+void menu_font_apply(TTF_Font *font){(void)font;menu_font_active=1;}
+void menu_font_restore(TTF_Font *font){(void)font;menu_font_active=0;}
+
+void draw_text(SDL_Renderer *r,TTF_Font *font,const char *text,int x,int y,SDL_Color color){font=resolve_font(font);if(!font)return;color=substitute_accent(color);SDL_Surface *s=TTF_RenderUTF8_Blended(font,text,color);if(!s)return;SDL_Texture *t=SDL_CreateTextureFromSurface(r,s);if(t){SDL_Rect dst={x,y,s->w,s->h};SDL_RenderCopy(r,t,NULL,&dst);SDL_DestroyTexture(t);}SDL_FreeSurface(s);}
+void draw_text_right(SDL_Renderer *r,TTF_Font *font,const char *text,int right_x,int y,SDL_Color color){font=resolve_font(font);if(!font)return;int w=0,h=0;if(TTF_SizeUTF8(font,text,&w,&h)!=0)return;draw_text(r,font,text,right_x-w,y,color);}
 void draw_scrollbar(SDL_Renderer *r,int x,int y,int height,int total_items,int visible_items,int first_visible){
     if(!r||height<=0||total_items<=visible_items||visible_items<=0)return;
     int max_first=total_items-visible_items;if(first_visible<0)first_visible=0;if(first_visible>max_first)first_visible=max_first;
@@ -43,19 +53,3 @@ void draw_scrollbar(SDL_Renderer *r,int x,int y,int height,int total_items,int v
     SDL_Rect thumb={x,thumb_y,5,thumb_h};SDL_Color a=ui_accent_color();SDL_SetRenderDrawColor(r,a.r,a.g,a.b,255);SDL_RenderFillRect(r,&thumb);
 }
 void format_time(double seconds,char *out,size_t size){if(seconds<0)seconds=0;int total=(int)seconds;int h=total/3600;int m=(total%3600)/60;int s=total%60;if(h)snprintf(out,size,"%d:%02d:%02d",h,m,s);else snprintf(out,size,"%02d:%02d",m,s);}
-int menu_font_pixels(void){static const int sizes[]={18,20,26,32};int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return sizes[i];}
-int menu_line_height(void){return menu_font_pixels()+8;}
-void menu_font_apply(TTF_Font *font){
-#if SDL_TTF_VERSION_ATLEAST(2,0,18)
-if(font)TTF_SetFontSize(font,menu_font_pixels());
-#else
-(void)font;
-#endif
-}
-void menu_font_restore(TTF_Font *font){
-#if SDL_TTF_VERSION_ATLEAST(2,0,18)
-if(font)TTF_SetFontSize(font,20);
-#else
-(void)font;
-#endif
-}
