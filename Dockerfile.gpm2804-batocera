@@ -21,7 +21,7 @@ COPY *.c *.h ./
 COPY Makefile.gpm2804 ./Makefile
 COPY screens ./screens
 
-RUN grep 'APP_VERSION "0.3.55"' config.h && \
+RUN grep 'APP_VERSION "0.3.56"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && \

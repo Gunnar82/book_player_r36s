@@ -14,6 +14,7 @@
 #include <unistd.h>
 
 #define BATOCERA_BLUETOOTH "/usr/bin/batocera-bluetooth"
+#define PACTL "/usr/bin/pactl"
 
 static pid_t live_pid=-1;
 static int live_fd=-1;
@@ -48,6 +49,56 @@ static int run_action(const char *action,const char *arg)
     return WIFEXITED(status)&&WEXITSTATUS(status)==0?0:-1;
 }
 
+static int set_bluetooth_sink_volume_100(const char *mac)
+{
+    if(!mac_valid(mac)||access(PACTL,X_OK)!=0)return -1;
+
+    char sink_mac[18];
+    snprintf(sink_mac,sizeof(sink_mac),"%s",mac);
+    for(char *p=sink_mac;*p;p++)if(*p==':')*p='_';
+
+    for(int attempt=0;attempt<20;attempt++){
+        FILE *fp=popen(PACTL " list short sinks 2>/dev/null","r");
+        if(fp){
+            char line[1024];
+            while(fgets(line,sizeof(line),fp)){
+                char *name=strchr(line,'\t');
+                if(!name)continue;
+                name++;
+                char *end=strchr(name,'\t');
+                if(!end)continue;
+                *end='\0';
+                if(strncmp(name,"bluez_output.",13)!=0||!strstr(name,sink_mac))continue;
+                pclose(fp);
+
+                pid_t pid=fork();
+                if(pid<0)return -1;
+                if(pid==0){execl(PACTL,PACTL,"set-sink-volume",name,"100%",(char*)NULL);_exit(127);}
+                int status=0;
+                if(waitpid(pid,&status,0)<0)return -1;
+                if(WIFEXITED(status)&&WEXITSTATUS(status)==0){
+                    app_logf("Bluetooth Batocera: Audio-Sink %s auf 100%% gesetzt",name);
+                    return 0;
+                }
+                app_logf("Bluetooth Batocera: Audio-Sink %s konnte nicht auf 100%% gesetzt werden",name);
+                return -1;
+            }
+            pclose(fp);
+        }
+        usleep(250000);
+    }
+    app_logf("Bluetooth Batocera: kein PipeWire-Sink fuer %s gefunden",mac);
+    return -1;
+}
+
+static int connect_and_set_volume(const char *mac)
+{
+    if(!mac_valid(mac))return -1;
+    int rc=run_action("connect",mac);
+    if(rc==0)set_bluetooth_sink_volume_100(mac);
+    return rc;
+}
+
 static int attr_value(const char *line,const char *key,char *out,size_t out_size)
 {
     if(!line||!key||!out||out_size==0)return -1;
@@ -77,7 +128,7 @@ int batocera_bluetooth_available(void)
 
 int batocera_bluetooth_enable(void){return run_action("enable",NULL);}
 int batocera_bluetooth_disable(void){return run_action("disable",NULL);}
-int batocera_bluetooth_connect(const char *mac){return mac_valid(mac)?run_action("connect",mac):-1;}
+int batocera_bluetooth_connect(const char *mac){return connect_and_set_volume(mac);}
 int batocera_bluetooth_disconnect(const char *mac){return mac_valid(mac)?run_action("disconnect",mac):-1;}
 int batocera_bluetooth_remove(const char *mac){return mac_valid(mac)?run_action("remove",mac):-1;}
 int batocera_bluetooth_pair(const char *mac)
@@ -91,7 +142,7 @@ int batocera_bluetooth_pair(const char *mac)
        persistenten Batocera-Schritte bleiben beim Systemkommando. */
     if(batocera_pair_agent_pair(mac)!=0)return -1;
     if(run_action("save",NULL)!=0)return -1;
-    return run_action("connect",mac);
+    return connect_and_set_volume(mac);
 }
 
 int batocera_bluetooth_list(BluetoothDevice *devices,int max_devices)
