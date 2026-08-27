@@ -8,7 +8,6 @@
 #include "ui.h"
 #include "state.h"
 #include "storage.h"
-#include "config.h"
 
 typedef struct { const char *key; const char *name; SDL_Color color; } AccentDef;
 static const AccentDef accents[] = {
@@ -23,8 +22,6 @@ static const AccentDef accents[] = {
 #define ACCENT_COUNT ((int)(sizeof(accents)/sizeof(accents[0])))
 static int accent_index=0;
 static int accent_loaded=0;
-static TTF_Font *menu_fonts[4]={NULL,NULL,NULL,NULL};
-static int menu_font_attempted[4]={0,0,0,0};
 static int menu_font_active=0;
 
 static void trim_line(char *s){if(!s)return;char *p=s;while(*p==' '||*p=='\t'||*p=='\r'||*p=='\n')p++;if(p!=s)memmove(s,p,strlen(p)+1);size_t n=strlen(s);while(n&&(s[n-1]==' '||s[n-1]=='\t'||s[n-1]=='\r'||s[n-1]=='\n'))s[--n]='\0';}
@@ -38,16 +35,15 @@ int ui_set_render_draw_color(SDL_Renderer *renderer,Uint8 r,Uint8 g,Uint8 b,Uint
 
 int menu_font_pixels(void){static const int sizes[]={18,20,26,32};int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return sizes[i];}
 int menu_line_height(void){return menu_font_pixels()+8;}
-static int menu_font_index(void){int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return i;}
-TTF_Font *menu_font_get(TTF_Font *fallback){int i=menu_font_index();int px=menu_font_pixels();if(!menu_fonts[i]&&!menu_font_attempted[i]){menu_font_attempted[i]=1;menu_fonts[i]=TTF_OpenFont(FONT_PATH,px);if(menu_fonts[i])fprintf(stderr,"[ui] menu font loaded: index=%d size=%d path=%s\n",i,px,FONT_PATH);else fprintf(stderr,"[ui] menu font FAILED: index=%d size=%d path=%s error=%s; using fallback\n",i,px,FONT_PATH,TTF_GetError());fflush(stderr);}return menu_fonts[i]?menu_fonts[i]:fallback;}
-static TTF_Font *resolve_font(TTF_Font *fallback){return menu_font_active?menu_font_get(fallback):fallback;}
-void menu_font_apply(TTF_Font *font){menu_font_active=1;
+TTF_Font *menu_font_get(TTF_Font *font){
+    if(!font)return NULL;
 #if SDL_TTF_VERSION_ATLEAST(2,0,18)
-if(font)TTF_SetFontSize(font,menu_font_pixels());
-#else
-(void)font;
+    TTF_SetFontSize(font,menu_font_pixels());
 #endif
+    return font;
 }
+static TTF_Font *resolve_font(TTF_Font *font){return menu_font_active?menu_font_get(font):font;}
+void menu_font_apply(TTF_Font *font){menu_font_active=1;menu_font_get(font);}
 void menu_font_restore(TTF_Font *font){menu_font_active=0;
 #if SDL_TTF_VERSION_ATLEAST(2,0,18)
 if(font)TTF_SetFontSize(font,20);
