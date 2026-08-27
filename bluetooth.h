@@ -1,6 +1,8 @@
 #ifndef BLUETOOTH_H
 #define BLUETOOTH_H
 
+#include <stddef.h>
+
 #define BT_MAX_DEVICES 16
 
 typedef struct {
