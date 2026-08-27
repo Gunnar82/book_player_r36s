@@ -40,8 +40,20 @@ int menu_line_height(void){return menu_font_pixels()+8;}
 static int menu_font_index(void){int i=menu_font_size;if(i<0)i=0;if(i>3)i=3;return i;}
 TTF_Font *menu_font_get(TTF_Font *fallback){int i=menu_font_index();if(!menu_fonts[i])menu_fonts[i]=TTF_OpenFont(FONT_PATH,menu_font_pixels());return menu_fonts[i]?menu_fonts[i]:fallback;}
 static TTF_Font *resolve_font(TTF_Font *fallback){return menu_font_active?menu_font_get(fallback):fallback;}
-void menu_font_apply(TTF_Font *font){(void)font;menu_font_active=1;}
-void menu_font_restore(TTF_Font *font){(void)font;menu_font_active=0;}
+void menu_font_apply(TTF_Font *font){menu_font_active=1;
+#if SDL_TTF_VERSION_ATLEAST(2,0,18)
+if(font)TTF_SetFontSize(font,menu_font_pixels());
+#else
+(void)font;
+#endif
+}
+void menu_font_restore(TTF_Font *font){menu_font_active=0;
+#if SDL_TTF_VERSION_ATLEAST(2,0,18)
+if(font)TTF_SetFontSize(font,20);
+#else
+(void)font;
+#endif
+}
 
 void draw_text(SDL_Renderer *r,TTF_Font *font,const char *text,int x,int y,SDL_Color color){font=resolve_font(font);if(!font)return;color=substitute_accent(color);SDL_Surface *s=TTF_RenderUTF8_Blended(font,text,color);if(!s)return;SDL_Texture *t=SDL_CreateTextureFromSurface(r,s);if(t){SDL_Rect dst={x,y,s->w,s->h};SDL_RenderCopy(r,t,NULL,&dst);SDL_DestroyTexture(t);}SDL_FreeSurface(s);}
 void draw_text_right(SDL_Renderer *r,TTF_Font *font,const char *text,int right_x,int y,SDL_Color color){font=resolve_font(font);if(!font)return;int w=0,h=0;if(TTF_SizeUTF8(font,text,&w,&h)!=0)return;draw_text(r,font,text,right_x-w,y,color);}
