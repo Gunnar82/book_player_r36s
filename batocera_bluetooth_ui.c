@@ -60,24 +60,13 @@ void __wrap_bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
                 if(ps==BATOCERA_PAIR_CONFIRM){
                     if(b==BUTTON_A){batocera_pair_agent_respond(1);set_message("Code bestaetigt");return;}
                     if(b==BUTTON_B){batocera_pair_agent_respond(0);set_message("Kopplung abgelehnt");return;}
-                }else if(b==BUTTON_B){
-                    batocera_pair_agent_cancel();
-                    set_message("Kopplung wird abgebrochen ...");
-                    return;
-                }
+                }else if(b==BUTTON_B){batocera_pair_agent_cancel();set_message("Kopplung wird abgebrochen ...");return;}
                 return;
             }
             if(b==BUTTON_B){stop_scan();return;}
             if(b==BUTTON_DPAD_UP){move_selection(-1);return;}
             if(b==BUTTON_DPAD_DOWN){move_selection(1);return;}
-            if(b==BUTTON_A&&live_count>0){
-                snprintf(pair_mac,sizeof(pair_mac),"%s",live[selection].mac);
-                SDL_AtomicSet(&pair_done,0);pair_result=-1;
-                pair_thread=SDL_CreateThread(pair_worker,"bt-pair",NULL);
-                if(!pair_thread)set_message("Pairing-Thread konnte nicht starten");
-                else set_message("Kopple Geraet ...");
-                return;
-            }
+            if(b==BUTTON_A&&live_count>0){snprintf(pair_mac,sizeof(pair_mac),"%s",live[selection].mac);SDL_AtomicSet(&pair_done,0);pair_result=-1;pair_thread=SDL_CreateThread(pair_worker,"bt-pair",NULL);if(!pair_thread)set_message("Pairing-Thread konnte nicht starten");else set_message("Kopple Geraet ...");return;}
             return;
         }
         if(b==BUTTON_B){bluetooth_ui_active=0;*c->screen=SCREEN_SYSTEM_INFO;return;}
@@ -96,56 +85,39 @@ void __wrap_bluetoothscreen_handle_event(ScreenContext *c,const SDL_Event *e)
 static void draw_device_icon(SDL_Renderer *r,const char *type,int x,int y,SDL_Color col)
 {
     SDL_SetRenderDrawColor(r,col.r,col.g,col.b,col.a);
-    if(type&&!strcasecmp(type,"audio")){
-        SDL_Rect top={x+4,y+2,12,2},left={x+2,y+7,3,10},right={x+15,y+7,3,10};
-        SDL_RenderFillRect(r,&top);SDL_RenderFillRect(r,&left);SDL_RenderFillRect(r,&right);
-        SDL_RenderDrawLine(r,x+3,y+8,x+5,y+3);SDL_RenderDrawLine(r,x+16,y+3,x+18,y+8);
-    }else if(type&&!strcasecmp(type,"phone")){
-        SDL_Rect body={x+5,y+1,10,18};SDL_RenderDrawRect(r,&body);SDL_RenderDrawLine(r,x+8,y+4,x+12,y+4);SDL_RenderDrawPoint(r,x+10,y+16);
-    }else{
-        SDL_RenderDrawRect(r,&(SDL_Rect){x+3,y+2,15,15});SDL_RenderDrawLine(r,x+7,y+6,x+9,y+4);SDL_RenderDrawLine(r,x+9,y+4,x+13,y+4);SDL_RenderDrawLine(r,x+13,y+4,x+15,y+6);SDL_RenderDrawLine(r,x+15,y+6,x+15,y+8);SDL_RenderDrawLine(r,x+15,y+8,x+11,y+11);SDL_RenderDrawLine(r,x+11,y+11,x+11,y+13);SDL_RenderDrawPoint(r,x+11,y+16);
-    }
+    if(type&&!strcasecmp(type,"audio")){SDL_Rect top={x+4,y+2,12,2},left={x+2,y+7,3,10},right={x+15,y+7,3,10};SDL_RenderFillRect(r,&top);SDL_RenderFillRect(r,&left);SDL_RenderFillRect(r,&right);SDL_RenderDrawLine(r,x+3,y+8,x+5,y+3);SDL_RenderDrawLine(r,x+16,y+3,x+18,y+8);}
+    else if(type&&!strcasecmp(type,"phone")){SDL_Rect body={x+5,y+1,10,18};SDL_RenderDrawRect(r,&body);SDL_RenderDrawLine(r,x+8,y+4,x+12,y+4);SDL_RenderDrawPoint(r,x+10,y+16);}
+    else{SDL_RenderDrawRect(r,&(SDL_Rect){x+3,y+2,15,15});SDL_RenderDrawLine(r,x+7,y+6,x+9,y+4);SDL_RenderDrawLine(r,x+9,y+4,x+13,y+4);SDL_RenderDrawLine(r,x+13,y+4,x+15,y+6);SDL_RenderDrawLine(r,x+15,y+6,x+15,y+8);SDL_RenderDrawLine(r,x+15,y+8,x+11,y+11);SDL_RenderDrawLine(r,x+11,y+11,x+11,y+13);SDL_RenderDrawPoint(r,x+11,y+16);}
 }
 
-static void render_scanning(ScreenContext *c)
+static void render_scanning(ScreenContext *c,TTF_Font *font,int row)
 {
     Uint32 now=SDL_GetTicks();if(now-last_scan_refresh>=500U){refresh_live();last_scan_refresh=now;}finish_pair_if_ready();
-    draw_text(c->renderer,c->font,"Bluetooth - Geraete suchen",20,20,c->selected);
-
+    draw_text(c->renderer,font,"Bluetooth - Geraete suchen",20,20,c->selected);
     BatoceraPairState ps=pair_thread?batocera_pair_agent_state():BATOCERA_PAIR_IDLE;
-    if(ps==BATOCERA_PAIR_CONFIRM){
-        char code[80];snprintf(code,sizeof(code),"Code: %06u",batocera_pair_agent_passkey());
-        draw_text(c->renderer,c->font,"Bluetooth-Code vergleichen",35,58,c->selected);
-        draw_text(c->renderer,c->font,code,35,92,c->white);
-        draw_text(c->renderer,c->font,"Stimmt der Code auf beiden Geraeten ueberein?",35,126,c->white);
-        draw_text(c->renderer,c->font,"A: Ja / bestaetigen    B: Nein / ablehnen",20,SCREEN_H-30,c->gray);
-        return;
-    }
-
-    if(pair_thread)draw_text(c->renderer,c->font,"Kopplung laeuft ...",35,58,c->selected);else draw_text(c->renderer,c->font,"Suche laeuft ...",35,58,c->gray);
-    int y=95;if(live_count==0)draw_text(c->renderer,c->font,"Noch keine Geraete gefunden",35,y,c->gray);
-    for(int i=0;i<live_count&&i<8;i++){
-        SDL_Color col=i==selection?c->selected:c->white;
-        draw_device_icon(c->renderer,live[i].type,35,y+1,col);
-        draw_text(c->renderer,c->font,live[i].name,62,y,col);
-        draw_text(c->renderer,c->font,live[i].mac,62,y+22,c->gray);
-        y+=46;
-    }
-    if(message[0]&&(Sint32)(message_until-now)>0)draw_text(c->renderer,c->font,message,35,SCREEN_H-65,c->selected);
-    draw_text(c->renderer,c->font,pair_thread?"B: Kopplung abbrechen":"A: Koppeln   B: Suche beenden",20,SCREEN_H-30,c->gray);
+    if(ps==BATOCERA_PAIR_CONFIRM){char code[80];snprintf(code,sizeof(code),"Code: %06u",batocera_pair_agent_passkey());draw_text(c->renderer,font,"Bluetooth-Code vergleichen",35,20+row,c->selected);draw_text(c->renderer,font,code,35,20+2*row,c->white);draw_text(c->renderer,font,"Stimmt der Code auf beiden Geraeten ueberein?",35,20+3*row,c->white);draw_text(c->renderer,font,"A: Ja / bestaetigen    B: Nein / ablehnen",20,SCREEN_H-row,c->gray);return;}
+    int list_top=20+2*row;draw_text(c->renderer,font,pair_thread?"Kopplung laeuft ...":"Suche laeuft ...",35,20+row,pair_thread?c->selected:c->gray);
+    int device_row=row*2;if(device_row<42)device_row=42;int visible=(SCREEN_H-list_top-row*2)/device_row;if(visible<1)visible=1;int first=selection>=visible?selection-visible+1:0;if(first>live_count-visible)first=live_count>visible?live_count-visible:0;if(first<0)first=0;int y=list_top;
+    if(live_count==0)draw_text(c->renderer,font,"Noch keine Geraete gefunden",35,y,c->gray);
+    for(int i=first;i<live_count&&i<first+visible;i++){SDL_Color col=i==selection?c->selected:c->white;draw_device_icon(c->renderer,live[i].type,35,y+1,col);draw_text(c->renderer,font,live[i].name,62,y,col);draw_text(c->renderer,font,live[i].mac,62,y+row,c->gray);y+=device_row;}
+    draw_scrollbar(c->renderer,620,list_top,visible*device_row,live_count,visible,first);
+    if(message[0]&&(Sint32)(message_until-now)>0)draw_text(c->renderer,font,message,35,SCREEN_H-2*row,c->selected);
+    draw_text(c->renderer,font,pair_thread?"B: Kopplung abbrechen":"A: Koppeln   B: Suche beenden",20,SCREEN_H-row,c->gray);
 }
 
 void __wrap_bluetoothscreen_render(ScreenContext *c)
 {
-    if(scanning){render_scanning(c);return;}finish_pair_if_ready();refresh_sink(0);
-    draw_text(c->renderer,c->font,"Bluetooth",20,20,c->selected);char buf[320];int powered=bluetooth_adapter_powered();
-    snprintf(buf,sizeof(buf),"Bluetooth: < %s >",powered?"Ein":"Aus");draw_text(c->renderer,c->font,buf,35,60,selection==0?c->selected:c->white);
-    snprintf(buf,sizeof(buf),"Autoconnect beim Start: < %s >",bluetooth_autoconnect?"Ein":"Aus");draw_text(c->renderer,c->font,buf,35,92,selection==1?c->selected:c->white);
-    draw_text(c->renderer,c->font,"Geraete suchen",35,124,selection==2?c->selected:c->white);
-    if(sink_available())snprintf(buf,sizeof(buf),"Ausgangspegel: < %d%% >",sink_volume);else snprintf(buf,sizeof(buf),"Ausgangspegel: nicht verfuegbar");draw_text(c->renderer,c->font,buf,35,156,sink_available()?(selection==3?c->selected:c->white):c->gray);
-    int y=196;if(!batocera_bluetooth_available())draw_text(c->renderer,c->font,"batocera-bluetooth nicht gefunden",35,y,c->selected);else if(!powered)draw_text(c->renderer,c->font,"Bluetooth ist ausgeschaltet",35,y,c->gray);else if(saved_count==0)draw_text(c->renderer,c->font,"Keine gespeicherten Geraete",35,y,c->gray);
-    int first=0;if(selection>9)first=selection-9;if(first>saved_count-5)first=saved_count>5?saved_count-5:0;if(first<0)first=0;
-    for(int i=first;i<saved_count&&i<first+5;i++){BluetoothDevice *d=&saved[i];SDL_Color col=selection==i+4?c->selected:c->white;snprintf(buf,sizeof(buf),"%s%s%s",d->name,d->connected?" [verbunden]":"",!strcmp(d->mac,bluetooth_device_mac)?" *":"");draw_text(c->renderer,c->font,buf,35,y,col);draw_text(c->renderer,c->font,d->mac,55,y+22,c->gray);y+=46;}
-    Uint32 now=SDL_GetTicks();if(message[0]&&(Sint32)(message_until-now)>0)draw_text(c->renderer,c->font,message,35,SCREEN_H-65,c->selected);
-    draw_text(c->renderer,c->font,"A: Aktion  X: Entfernen  Links/Rechts: Wert  B: Zurueck",20,SCREEN_H-30,c->gray);
+    TTF_Font *font=menu_font_get(c->font);int row=menu_line_height();
+    if(scanning){render_scanning(c,font,row);return;}finish_pair_if_ready();refresh_sink(0);
+    draw_text(c->renderer,font,"Bluetooth",20,20,c->selected);char buf[320];int powered=bluetooth_adapter_powered();int base=20+row;
+    snprintf(buf,sizeof(buf),"Bluetooth: < %s >",powered?"Ein":"Aus");draw_text(c->renderer,font,buf,35,base,selection==0?c->selected:c->white);
+    snprintf(buf,sizeof(buf),"Autoconnect beim Start: < %s >",bluetooth_autoconnect?"Ein":"Aus");draw_text(c->renderer,font,buf,35,base+row,selection==1?c->selected:c->white);
+    draw_text(c->renderer,font,"Geraete suchen",35,base+2*row,selection==2?c->selected:c->white);
+    if(sink_available())snprintf(buf,sizeof(buf),"Ausgangspegel: < %d%% >",sink_volume);else snprintf(buf,sizeof(buf),"Ausgangspegel: nicht verfuegbar");draw_text(c->renderer,font,buf,35,base+3*row,sink_available()?(selection==3?c->selected:c->white):c->gray);
+    int list_top=base+4*row+8,y=list_top;if(!batocera_bluetooth_available())draw_text(c->renderer,font,"batocera-bluetooth nicht gefunden",35,y,c->selected);else if(!powered)draw_text(c->renderer,font,"Bluetooth ist ausgeschaltet",35,y,c->gray);else if(saved_count==0)draw_text(c->renderer,font,"Keine gespeicherten Geraete",35,y,c->gray);
+    int device_row=row*2;if(device_row<42)device_row=42;int footer_space=row*3;int visible=(SCREEN_H-list_top-footer_space)/device_row;if(visible<1)visible=1;int device_sel=selection>=4?selection-4:0;int first=device_sel>=visible?device_sel-visible+1:0;if(first>saved_count-visible)first=saved_count>visible?saved_count-visible:0;if(first<0)first=0;
+    for(int i=first;i<saved_count&&i<first+visible;i++){BluetoothDevice *d=&saved[i];SDL_Color col=selection==i+4?c->selected:c->white;snprintf(buf,sizeof(buf),"%s%s%s",d->name,d->connected?" [verbunden]":"",!strcmp(d->mac,bluetooth_device_mac)?" *":"");draw_text(c->renderer,font,buf,35,y,col);draw_text(c->renderer,font,d->mac,55,y+row,c->gray);y+=device_row;}
+    draw_scrollbar(c->renderer,620,list_top,visible*device_row,saved_count,visible,first);
+    Uint32 now=SDL_GetTicks();if(message[0]&&(Sint32)(message_until-now)>0)draw_text(c->renderer,font,message,35,SCREEN_H-2*row,c->selected);
+    draw_text(c->renderer,font,"A: Aktion  X: Entfernen  Links/Rechts: Wert  B: Zurueck",20,SCREEN_H-row,c->gray);
 }
