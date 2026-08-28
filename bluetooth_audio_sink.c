@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #define PACTL "/usr/bin/pactl"
-#define SINK_CACHE_MS 1000ULL
+#define SINK_CACHE_MS 3000ULL
 
 static char cached_sink[512] = "";
 static int cached_volume = -1;
