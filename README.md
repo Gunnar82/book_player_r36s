@@ -2,7 +2,7 @@
 
 Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist primär für den **R36S** entwickelt und enthält zusätzlich einen **Waveshare GPM2804 / Batocera**-Build.
 
-**Aktueller Stand: 0.3.54**
+**Aktueller Stand: 0.3.58**
 
 `main` ist die maßgebliche Quelle für stabile Projektstände. Entwicklungsregeln und die Wiederaufnahme nach Kontextverlust stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
@@ -12,7 +12,9 @@ Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist p
 - mehrere konfigurierbare Speicherpfade und verschachtelte Hörspielordner
 - Track- und Gesamtfortschritt
 - ID3-Tracktitel mit Dateinamen als Fallback
-- Lautstärke-, Akku- und Ladezeitanzeige
+- App-Lautstärke sowie globale Ausgangslautstärke; bei aktivem Bluetooth-Audio zusätzlich separate Bluetooth-Sink-Lautstärke
+- Audio-Systemwerte werden im Hintergrund aktualisiert, damit Menü und Scrolling nicht durch `amixer`/`pactl` blockieren
+- Akku- und Ladezeitanzeige
 - Sleep-, Idle- und Display-Timer
 - Tastensperre und persistente Nutzungsstatistik
 - Downloads aus XML-/nginx-Listings, HTTPS und optional mTLS
@@ -31,9 +33,13 @@ Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist p
 
 Hauptziel des Projekts. Der R36S-Build verwendet `BUILD_R36S`, die Standard-Controllerbelegung aus `config.h` und den Debian-DejaVu-Fontpfad. Der System-Shutdown läuft über den bestehenden logind-/D-Bus-Pfad.
 
+Die globale **Ausgangslautstärke** verwendet den ALSA-`Master`-Regler. Auf dem getesteten R36S beeinflusst dieser den internen Lautsprecher, den Kopfhörerausgang und die Bluetooth-Ausgabe.
+
 ### Waveshare GPM2804 / Batocera
 
 Der Batocera-Build verwendet `BUILD_BATOCERA`. Der Export enthält Binary, benötigte Laufzeitbibliotheken und einen Starter. Da Batocera auf dem getesteten Gerät kein `busctl/loginctl` bereitstellt, wird Poweroff im Batocera-Build auf `/sbin/shutdown -P -h now` abgebildet. Dieser Pfad ist auf dem GPM2804 getestet.
+
+Auch hier wird die globale Ausgangslautstärke über den ALSA-`Master`-Regler gesteuert. Ist ein Bluetooth-Audio-Sink verfügbar, erscheint in den Einstellungen zusätzlich dessen eigene Lautstärke. Die Statusabfragen für `Master` und Bluetooth-Sink laufen in Hintergrundthreads mit einem Aktualisierungsintervall von drei Sekunden; das UI liest nur die gecachten Werte.
 
 Ab 0.3.54 laufen Downloads im GPM2804/Batocera-Build über einen separaten SDL-Worker. Ein gestarteter Download kann mit `Y` in den Hintergrund geschickt werden; die Wiedergabe bleibt danach bedienbar. Beim erneuten Öffnen von **Downloads** wird ein laufender Job wieder mit aktuellem Fortschritt angezeigt.
 
@@ -44,6 +50,8 @@ Wichtige Dateien und Bereiche:
 - `main.c` – Hauptprogramm und Eventloop
 - `state.c/.h` – Laufzeit-, Resume- und UI-Zustand
 - `audio.c/.h` – lokale Audio-Wiedergabe
+- `output_volume.c/.h` – globale ALSA-Master-Lautstärke und asynchron aktualisierter Cache
+- `bluetooth_audio_sink.c` – Bluetooth-Sink-Lautstärke und asynchron aktualisierter Sink-Cache
 - `scanner.c/.h` – Bibliotheks-/Hörspielscan
 - `storage.c/.h` – Speicherpfade und Laden der `config.ini`
 - `util.c/.h` – gemeinsame String-/Pfad-Helfer
@@ -128,6 +136,16 @@ repeat_book=0
 
 **Nur `repeat_book` ("Hörspielende") ist persistent.** `shutdown_after_tracks` und `shutdown_at_book_end` sind bewusst reine Session-Einstellungen und werden beim Programmstart auf Aus/0 zurückgesetzt, auch wenn eine ältere `config.ini` noch entsprechende Werte enthält.
 
+### Audio-Lautstärke
+
+Im Einstellungsmenü werden die Audiopegel getrennt dargestellt:
+
+- **Ausgangslautstärke** – globaler ALSA-`Master`-Pegel
+- **Lautstärke** – Lautstärke des Players über SDL_mixer
+- **Bluetooth-Lautstärke** – Pegel des aktiven Bluetooth-Audio-Sinks; nur sichtbar, wenn ein entsprechender Sink verfügbar ist
+
+Die Systemwerte werden alle drei Sekunden außerhalb des UI-Threads aktualisiert. Änderungen aktualisieren den Cache direkt, sodass die Anzeige nach einem Tastendruck nicht auf den nächsten Hintergrund-Refresh warten muss.
+
 ### Downloads
 
 ```ini
@@ -183,29 +201,20 @@ Ab 0.3.52 steht mit `config_update.c/.h` eine gemeinsame atomische Schreibschich
 
 Der Hintergrunddownload verwendet einen einzelnen Worker-Thread und einen mutex-geschützten Status-Snapshot. SDL-Rendering und Controller-Events bleiben im UI-Thread. Beim Programmende wird ein laufender Worker kontrolliert abgebrochen und eingesammelt, bevor SDL beendet wird.
 
+Die Audio-Systemabfragen verwenden ebenfalls Hintergrundthreads und mutex-geschützte Cachewerte. Dadurch führen die regelmäßigen externen `amixer`-/`pactl`-Aufrufe nicht zu Rucklern beim Scrollen im Einstellungsmenü.
+
 Bluetooth-MAC-Adressen werden vor Shell-basierten `bluetoothctl`-Aufrufen strikt validiert.
 
-## Getesteter Stand 0.3.54
+## Getesteter Stand 0.3.58
 
-Auf Batocera/GPM2804 wurden während der Entwicklung unter anderem erfolgreich geprüft:
+Auf R36S und GPM2804/Batocera wurden während der Entwicklung unter anderem die plattformspezifischen Bluetooth- und Menüanpassungen geprüft. Für die Audioeinstellungen gilt:
 
-- Build `make gpm2804`
-- Utility-/Config-Regressionstest
-- Bluetooth inklusive Speichern von Einstellungen
-- Radio-Browser-Liste mit etwa 6000 Stationen
-- Stream-Favoriten inklusive Neustart
-- Stream-Zertifikatsmodus inklusive Neustart
-- Download An/Aus inklusive Neustart
-- Download-Abbruch über die logisch konfigurierte B-Taste
-- Fortschrittsanzeige mit aktuellem Ordner und Downloadrate
-- Umschalten eines laufenden Downloads mit `Y` in den Hintergrund
-- kompakte Hintergrunddownload-Anzeige im Wiedergabe-Screen
-- erneutes Öffnen des Download-Menüs während eines aktiven Hintergrundjobs
-- persistentes `repeat_book`
-- nicht persistente Session-Werte `shutdown_after_tracks` und `shutdown_at_book_end`
-- System-Shutdown über Batocera
+- globale Ausgangslautstärke über ALSA `Master`
+- getrennte Player-Lautstärke
+- zusätzliche Bluetooth-Sink-Lautstärke bei verfügbarem Bluetooth-Audio-Sink
+- asynchrone Statusaktualisierung im Drei-Sekunden-Intervall, damit das Einstellungsmenü flüssig bedienbar bleibt
 
-Der R36S-Build wird weiterhin gepflegt. Die Hintergrunddownload-Erweiterung aus 0.3.54 ist derzeit für den GPM2804/Batocera-Build eingebunden und dort auf Hardware getestet; für R36S bleibt bis zu einer gesonderten Portierung und Prüfung das bisherige synchrone Downloadverhalten maßgeblich.
+Weitere bestehende Tests umfassen unter anderem Builds, Utility-/Config-Regressionstests, Bluetooth, Streams, Favoriten, Downloads, Hintergrunddownloads und System-Shutdown auf den jeweils unterstützten Plattformen.
 
 ## Entwicklungsworkflow
 
@@ -225,7 +234,7 @@ Die vollständigen Regeln stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
 Die README beschreibt den **aktuellen** Projektstand und ist kein chronologisches Changelog. Ältere Entwicklungsschritte bleiben über die Git-Historie sowie Changelog-, Release- und Testdateien nachvollziehbar.
 
-Aktuelle Version laut `config.h`: **0.3.54**.
+Aktuelle Version laut `config.h`: **0.3.58**.
 
 ## Lizenz und Kontakt
 
