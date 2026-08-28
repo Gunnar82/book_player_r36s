@@ -2,29 +2,21 @@
 #include "app_log.h"
 
 #include <ctype.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <time.h>
 #include <unistd.h>
 
 #define PACTL "/usr/bin/pactl"
-#define SINK_CACHE_MS 3000ULL
+#define SINK_REFRESH_SECONDS 3
 
+static pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_once_t worker_once = PTHREAD_ONCE_INIT;
 static char cached_sink[512] = "";
 static int cached_volume = -1;
-static unsigned long long cached_at_ms = 0;
-
-static unsigned long long monotonic_ms(void)
-{
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        return 0;
-    }
-    return (unsigned long long)ts.tv_sec * 1000ULL + (unsigned long long)ts.tv_nsec / 1000000ULL;
-}
 
 static int is_bluetooth_sink(const char *name)
 {
@@ -69,19 +61,9 @@ static int read_volume(const char *sink, int *volume)
     return 0;
 }
 
-int bluetooth_audio_sink_get(char *sink_name, size_t sink_name_size, int *volume_percent)
+static int read_sink(char *sink_name, size_t sink_name_size, int *volume_percent)
 {
-    if (!sink_name || sink_name_size == 0 || !volume_percent) {
-        return -1;
-    }
-
-    unsigned long long now = monotonic_ms();
-    if (cached_sink[0] && cached_volume >= 0 && cached_at_ms != 0 && now >= cached_at_ms && now - cached_at_ms < SINK_CACHE_MS) {
-        snprintf(sink_name, sink_name_size, "%s", cached_sink);
-        *volume_percent = cached_volume;
-        return 0;
-    }
-    if (access(PACTL, X_OK) != 0) {
+    if (!sink_name || sink_name_size == 0 || !volume_percent || access(PACTL, X_OK) != 0) {
         return -1;
     }
 
@@ -116,26 +98,77 @@ int bluetooth_audio_sink_get(char *sink_name, size_t sink_name_size, int *volume
         }
     }
     pclose(fp);
+
     if (!sink_name[0] && fallback[0]) {
         snprintf(sink_name, sink_name_size, "%s", fallback);
     }
     if (!sink_name[0]) {
-        cached_sink[0] = '\0';
-        cached_volume = -1;
-        cached_at_ms = now;
         return -1;
     }
     if (read_volume(sink_name, volume_percent) != 0) {
         sink_name[0] = '\0';
+        return -1;
+    }
+    return 0;
+}
+
+static void update_cache(const char *sink_name, int volume_percent)
+{
+    pthread_mutex_lock(&cache_mutex);
+    if (sink_name && sink_name[0] && volume_percent >= 0) {
+        snprintf(cached_sink, sizeof(cached_sink), "%s", sink_name);
+        cached_volume = volume_percent;
+    } else {
         cached_sink[0] = '\0';
         cached_volume = -1;
-        cached_at_ms = now;
+    }
+    pthread_mutex_unlock(&cache_mutex);
+}
+
+static void *sink_worker(void *unused)
+{
+    (void)unused;
+    for (;;) {
+        char sink_name[512];
+        int volume_percent;
+        if (read_sink(sink_name, sizeof(sink_name), &volume_percent) == 0) {
+            update_cache(sink_name, volume_percent);
+        } else {
+            update_cache(NULL, -1);
+        }
+        sleep(SINK_REFRESH_SECONDS);
+    }
+    return NULL;
+}
+
+static void start_worker(void)
+{
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, sink_worker, NULL) == 0) {
+        pthread_detach(thread);
+    }
+}
+
+static void ensure_worker(void)
+{
+    pthread_once(&worker_once, start_worker);
+}
+
+int bluetooth_audio_sink_get(char *sink_name, size_t sink_name_size, int *volume_percent)
+{
+    if (!sink_name || sink_name_size == 0 || !volume_percent) {
         return -1;
     }
 
-    snprintf(cached_sink, sizeof(cached_sink), "%s", sink_name);
-    cached_volume = *volume_percent;
-    cached_at_ms = now;
+    ensure_worker();
+    pthread_mutex_lock(&cache_mutex);
+    if (!cached_sink[0] || cached_volume < 0) {
+        pthread_mutex_unlock(&cache_mutex);
+        return -1;
+    }
+    snprintf(sink_name, sink_name_size, "%s", cached_sink);
+    *volume_percent = cached_volume;
+    pthread_mutex_unlock(&cache_mutex);
     return 0;
 }
 
@@ -165,9 +198,7 @@ int bluetooth_audio_sink_set_volume(const char *sink_name, int volume_percent)
         return -1;
     }
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        snprintf(cached_sink, sizeof(cached_sink), "%s", sink_name);
-        cached_volume = volume_percent;
-        cached_at_ms = monotonic_ms();
+        update_cache(sink_name, volume_percent);
         app_logf("Bluetooth Audio-Sink: %s -> %d%%", sink_name, volume_percent);
         return 0;
     }
