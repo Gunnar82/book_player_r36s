@@ -2,6 +2,7 @@
 #include "app_log.h"
 
 #include <ctype.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,19 +12,11 @@
 #include <unistd.h>
 
 #define AMIXER "/usr/bin/amixer"
-#define OUTPUT_VOLUME_CACHE_MS 3000ULL
+#define OUTPUT_VOLUME_REFRESH_SECONDS 3
 
+static pthread_mutex_t cache_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_once_t worker_once = PTHREAD_ONCE_INIT;
 static int cached_percent = -1;
-static unsigned long long cached_at_ms = 0;
-
-static unsigned long long monotonic_ms(void)
-{
-    struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        return 0;
-    }
-    return (unsigned long long)ts.tv_sec * 1000ULL + (unsigned long long)ts.tv_nsec / 1000000ULL;
-}
 
 static int clamp_percent(int value)
 {
@@ -36,18 +29,9 @@ static int clamp_percent(int value)
     return value;
 }
 
-int output_volume_get(int *percent)
+static int read_output_volume(int *percent)
 {
-    if (!percent) {
-        return -1;
-    }
-
-    unsigned long long now = monotonic_ms();
-    if (cached_percent >= 0 && cached_at_ms != 0 && now >= cached_at_ms && now - cached_at_ms < OUTPUT_VOLUME_CACHE_MS) {
-        *percent = cached_percent;
-        return 0;
-    }
-    if (access(AMIXER, X_OK) != 0) {
+    if (!percent || access(AMIXER, X_OK) != 0) {
         return -1;
     }
 
@@ -77,9 +61,58 @@ int output_volume_get(int *percent)
         return -1;
     }
 
-    cached_percent = clamp_percent(found);
-    cached_at_ms = now;
-    *percent = cached_percent;
+    *percent = clamp_percent(found);
+    return 0;
+}
+
+static void update_cache(int percent)
+{
+    pthread_mutex_lock(&cache_mutex);
+    cached_percent = clamp_percent(percent);
+    pthread_mutex_unlock(&cache_mutex);
+}
+
+static void *volume_worker(void *unused)
+{
+    (void)unused;
+    for (;;) {
+        int percent;
+        if (read_output_volume(&percent) == 0) {
+            update_cache(percent);
+        }
+        sleep(OUTPUT_VOLUME_REFRESH_SECONDS);
+    }
+    return NULL;
+}
+
+static void start_worker(void)
+{
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, volume_worker, NULL) == 0) {
+        pthread_detach(thread);
+    }
+}
+
+static void ensure_worker(void)
+{
+    pthread_once(&worker_once, start_worker);
+}
+
+int output_volume_get(int *percent)
+{
+    if (!percent) {
+        return -1;
+    }
+
+    ensure_worker();
+    pthread_mutex_lock(&cache_mutex);
+    int value = cached_percent;
+    pthread_mutex_unlock(&cache_mutex);
+    if (value < 0) {
+        return -1;
+    }
+
+    *percent = value;
     return 0;
 }
 
@@ -106,8 +139,7 @@ int output_volume_set(int percent)
         return -1;
     }
     if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
-        cached_percent = percent;
-        cached_at_ms = monotonic_ms();
+        update_cache(percent);
         app_logf("Ausgangslautstaerke: Master -> %d%%", percent);
         return 0;
     }
