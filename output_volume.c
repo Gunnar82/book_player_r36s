@@ -11,7 +11,7 @@
 #include <unistd.h>
 
 #define AMIXER "/usr/bin/amixer"
-#define OUTPUT_VOLUME_CACHE_MS 1000ULL
+#define OUTPUT_VOLUME_CACHE_MS 3000ULL
 
 static int cached_percent = -1;
 static unsigned long long cached_at_ms = 0;
