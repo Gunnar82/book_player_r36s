@@ -26,6 +26,7 @@ SOURCES := \
 	led.c \
 	scanner.c \
 	audio.c \
+	output_volume.c \
 	ui.c \
 	storage.c \
 	systemstats.c \
