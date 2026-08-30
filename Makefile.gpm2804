@@ -34,6 +34,7 @@ SOURCES := \
 	output_volume.c \
 	ui.c \
 	storage.c \
+	local_delete.c \
 	systemstats.c \
 	media_keys.c \
 	media_feedback.c \
