@@ -11,4 +11,8 @@ int update_download_and_verify(const UpdateManifest *manifest,
                                char *status,
                                int status_size);
 
+int update_install_staged(const char *staged_path,
+                          char *status,
+                          int status_size);
+
 #endif
