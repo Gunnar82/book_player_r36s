@@ -20,7 +20,7 @@ typedef struct {
     int action;
 } Row;
 
-enum { ACTION_NONE = 0, ACTION_CHECK, ACTION_DOWNLOAD };
+enum { ACTION_NONE = 0, ACTION_CHECK, ACTION_DOWNLOAD, ACTION_INSTALL };
 
 static int selection = 0;
 static int scroll_offset = 0;
@@ -29,6 +29,8 @@ static int check_running = 0;
 static int check_finished = 0;
 static int check_result = -1;
 static int download_running = 0;
+static int install_running = 0;
+static int update_ready = 0;
 static UpdateManifest check_manifest;
 static char check_status[UPDATE_INSTALL_STATUS_LEN] = "Noch nicht geprueft";
 
@@ -48,6 +50,7 @@ static void *update_check_worker(void *userdata)
     check_result = result;
     check_running = 0;
     check_finished = 1;
+    update_ready = 0;
     pthread_mutex_unlock(&check_mutex);
     return NULL;
 }
@@ -66,11 +69,26 @@ static void *update_download_worker(void *userdata)
     result = update_download_and_verify(&manifest, UPDATE_STAGE_PATH, status, sizeof(status));
 
     pthread_mutex_lock(&check_mutex);
-    snprintf(check_status, sizeof(check_status), "%s", status);
-    if (result == 0) {
-        snprintf(check_status, sizeof(check_status), "Update bereit: %s", UPDATE_STAGE_PATH);
-    }
+    update_ready = result == 0;
+    if (result == 0) snprintf(check_status, sizeof(check_status), "Update bereit: %s", UPDATE_STAGE_PATH);
+    else snprintf(check_status, sizeof(check_status), "%s", status);
     download_running = 0;
+    pthread_mutex_unlock(&check_mutex);
+    return NULL;
+}
+
+static void *update_install_worker(void *userdata)
+{
+    char status[UPDATE_INSTALL_STATUS_LEN];
+    int result;
+    (void)userdata;
+
+    result = update_install_staged(UPDATE_STAGE_PATH, status, sizeof(status));
+
+    pthread_mutex_lock(&check_mutex);
+    snprintf(check_status, sizeof(check_status), "%s", status);
+    if (result == 0) update_ready = 0;
+    install_running = 0;
     pthread_mutex_unlock(&check_mutex);
     return NULL;
 }
@@ -87,13 +105,14 @@ static int start_worker(void *(*worker)(void *))
 static int start_update_check(void)
 {
     pthread_mutex_lock(&check_mutex);
-    if (check_running || download_running) {
+    if (check_running || download_running || install_running) {
         pthread_mutex_unlock(&check_mutex);
         return 0;
     }
     check_running = 1;
     check_finished = 0;
     check_result = -1;
+    update_ready = 0;
     memset(&check_manifest, 0, sizeof(check_manifest));
     snprintf(check_status, sizeof(check_status), "Pruefung laeuft...");
     pthread_mutex_unlock(&check_mutex);
@@ -111,12 +130,13 @@ static int start_update_check(void)
 static int start_update_download(void)
 {
     pthread_mutex_lock(&check_mutex);
-    if (check_running || download_running || !check_finished || check_result != 0 ||
+    if (check_running || download_running || install_running || !check_finished || check_result != 0 ||
         update_version_compare(check_manifest.version, APP_VERSION) <= 0) {
         pthread_mutex_unlock(&check_mutex);
         return -1;
     }
     download_running = 1;
+    update_ready = 0;
     snprintf(check_status, sizeof(check_status), "Update wird heruntergeladen...");
     pthread_mutex_unlock(&check_mutex);
 
@@ -130,10 +150,31 @@ static int start_update_download(void)
     return 0;
 }
 
+static int start_update_install(void)
+{
+    pthread_mutex_lock(&check_mutex);
+    if (check_running || download_running || install_running || !update_ready) {
+        pthread_mutex_unlock(&check_mutex);
+        return -1;
+    }
+    install_running = 1;
+    snprintf(check_status, sizeof(check_status), "Update wird installiert...");
+    pthread_mutex_unlock(&check_mutex);
+
+    if (start_worker(update_install_worker) != 0) {
+        pthread_mutex_lock(&check_mutex);
+        install_running = 0;
+        snprintf(check_status, sizeof(check_status), "Installation konnte nicht gestartet werden");
+        pthread_mutex_unlock(&check_mutex);
+        return -1;
+    }
+    return 0;
+}
+
 static int build_rows(Row *rows)
 {
     int n = 0;
-    int running, finished, result, downloading, newer = 0;
+    int running, finished, result, downloading, installing, ready, newer = 0;
     static char tls_mode[32];
     static char status[UPDATE_INSTALL_STATUS_LEN];
     static char available[96];
@@ -143,6 +184,8 @@ static int build_rows(Row *rows)
     finished = check_finished;
     result = check_result;
     downloading = download_running;
+    installing = install_running;
+    ready = update_ready;
     snprintf(status, sizeof(status), "%s", check_status);
     if (finished && result == 0 && check_manifest.version[0]) {
         int cmp = update_version_compare(check_manifest.version, APP_VERSION);
@@ -167,8 +210,9 @@ static int build_rows(Row *rows)
     rows[n++] = (Row){"Key Passwort", update_config_client_key_password()[0] ? "gesetzt" : "nicht gesetzt", 0, ACTION_NONE};
     rows[n++] = (Row){"Verfuegbar", available, 0, ACTION_NONE};
     rows[n++] = (Row){"Status", status, 0, ACTION_NONE};
-    rows[n++] = (Row){"Nach Updates suchen", running ? "<  Laeuft...  >" : "<  Start  >", !downloading, ACTION_CHECK};
-    rows[n++] = (Row){"Update herunterladen", downloading ? "<  Laeuft...  >" : (newer ? "<  Start  >" : "--"), newer && !running && !downloading, ACTION_DOWNLOAD};
+    rows[n++] = (Row){"Nach Updates suchen", running ? "<  Laeuft...  >" : "<  Start  >", !downloading && !installing, ACTION_CHECK};
+    rows[n++] = (Row){"Update herunterladen", downloading ? "<  Laeuft...  >" : (newer ? "<  Start  >" : "--"), newer && !running && !downloading && !installing, ACTION_DOWNLOAD};
+    rows[n++] = (Row){"Update installieren", installing ? "<  Laeuft...  >" : (ready ? "<  Start  >" : "--"), ready && !running && !downloading && !installing, ACTION_INSTALL};
     return n;
 }
 
@@ -191,7 +235,7 @@ static void keep_visible(int count)
 
 void updatesettings_reset(void)
 {
-    Row rows[16];
+    Row rows[18];
     int count = build_rows(rows);
     selection = find_selectable(rows, count);
     scroll_offset = 0;
@@ -200,7 +244,7 @@ void updatesettings_reset(void)
 
 void updatesettings_handle_event(ScreenContext *c, const SDL_Event *e)
 {
-    Row rows[16];
+    Row rows[18];
     int count = build_rows(rows);
 
     if (selection >= count || !rows[selection].selectable) selection = find_selectable(rows, count);
@@ -211,6 +255,7 @@ void updatesettings_handle_event(ScreenContext *c, const SDL_Event *e)
         if (b == BUTTON_A && rows[selection].selectable) {
             if (rows[selection].action == ACTION_CHECK) start_update_check();
             else if (rows[selection].action == ACTION_DOWNLOAD) start_update_download();
+            else if (rows[selection].action == ACTION_INSTALL) start_update_install();
             return;
         }
         if (b == BUTTON_DPAD_UP || b == BUTTON_DPAD_DOWN) {
@@ -242,7 +287,7 @@ void updatesettings_handle_event(ScreenContext *c, const SDL_Event *e)
 
 void updatesettings_render(ScreenContext *c)
 {
-    Row rows[16];
+    Row rows[18];
     int count = build_rows(rows);
     int end = scroll_offset + MAX_ROWS;
     int y = TOP_Y;
