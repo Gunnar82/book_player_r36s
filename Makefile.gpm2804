@@ -25,6 +25,7 @@ SOURCES := \
 	stream_config.c \
 	stream_favorites.c \
 	update_config.c \
+	update_check.c \
 	state.c \
 	backlight.c \
 	battery.c \
