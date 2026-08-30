@@ -61,9 +61,9 @@ static void remove_book_from_library(ScreenContext *c, int index)
     }
 
     for (int i = index; i + 1 < *c->book_count; i++) {
-        snprintf(c->book_names[i], 256, "%s", c->book_names[i + 1]);
-        snprintf(c->book_paths[i], 512, "%s", c->book_paths[i + 1]);
-        snprintf(c->book_roots[i], 512, "%s", c->book_roots[i + 1]);
+        memmove(c->book_names[i], c->book_names[i + 1], sizeof(c->book_names[i]));
+        memmove(c->book_paths[i], c->book_paths[i + 1], sizeof(c->book_paths[i]));
+        memmove(c->book_roots[i], c->book_roots[i + 1], sizeof(c->book_roots[i]));
         c->book_track_counts[i] = c->book_track_counts[i + 1];
     }
 
