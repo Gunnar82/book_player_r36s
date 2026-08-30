@@ -8,7 +8,7 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY Makefile.r36s ./Makefile
 COPY screens ./screens
-RUN grep 'APP_VERSION "0.3.60"' config.h && \
+RUN grep 'APP_VERSION "0.3.61"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'mpris_bridge_init' mpris_bridge.h && \
