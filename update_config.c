@@ -35,6 +35,55 @@ static void trim_update(char *s)
     }
 }
 
+int update_config_ensure_section(void)
+{
+    const char *path = get_storage_config_path();
+    FILE *fp = fopen(path, "r");
+    char line[1400];
+    int found = 0;
+
+    if (!fp) {
+        return -1;
+    }
+    while (fgets(line, sizeof(line), fp)) {
+        trim_update(line);
+        if (!strcmp(line, "[updates]")) {
+            found = 1;
+            break;
+        }
+    }
+    fclose(fp);
+    if (found) {
+        return 0;
+    }
+
+    fp = fopen(path, "a");
+    if (!fp) {
+        return -1;
+    }
+    if (fprintf(fp,
+                "\n[updates]\n"
+                "# Self-Updates sind standardmaessig deaktiviert.\n"
+                "enabled=0\n"
+                "# HTTPS-Basis-URL fuer latest.json und Update-Dateien.\n"
+                "base_url=\n"
+                "# 1 = TLS-Werte aus [download], 0 = eigene Werte unten.\n"
+                "use_download_tls=1\n"
+                "verify_peer=1\n"
+                "verify_host=1\n"
+                "ca_cert=\n"
+                "client_cert=\n"
+                "client_key=\n"
+                "client_key_password=\n") < 0) {
+        fclose(fp);
+        return -1;
+    }
+    if (fclose(fp) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
 void update_config_load(void)
 {
     FILE *fp;
