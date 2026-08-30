@@ -15,6 +15,7 @@ extern char update_client_cert[STORAGE_PATH_LEN];
 extern char update_client_key[STORAGE_PATH_LEN];
 extern char update_client_key_password[256];
 
+int update_config_ensure_section(void);
 void update_config_load(void);
 const char *update_config_ca_cert(void);
 const char *update_config_client_cert(void);
