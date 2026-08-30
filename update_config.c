@@ -100,6 +100,7 @@ void update_config_load(void)
     update_client_key[0] = '\0';
     update_client_key_password[0] = '\0';
 
+    update_config_ensure_section();
     fp = fopen(get_storage_config_path(), "r");
     if (!fp) {
         return;
