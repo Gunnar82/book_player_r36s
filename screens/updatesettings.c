@@ -1,9 +1,12 @@
 #include "updatesettings.h"
 #include "../config.h"
 #include "../update_config.h"
+#include "../update_check.h"
 #include "../ui.h"
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ROW_H 32
 #define TOP_Y 58
@@ -17,11 +20,89 @@ typedef struct {
 
 static int selection = 0;
 static int scroll_offset = 0;
+static pthread_mutex_t check_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int check_running = 0;
+static int check_finished = 0;
+static int check_result = -1;
+static UpdateManifest check_manifest;
+static char check_status[UPDATE_CHECK_STATUS_LEN] = "Noch nicht geprueft";
+
+static void *update_check_worker(void *userdata)
+{
+    UpdateManifest manifest;
+    char status[UPDATE_CHECK_STATUS_LEN];
+    int result;
+
+    (void)userdata;
+    result = update_check_latest(&manifest, status, sizeof(status));
+
+    pthread_mutex_lock(&check_mutex);
+    check_manifest = manifest;
+    snprintf(check_status, sizeof(check_status), "%s", status);
+    check_result = result;
+    check_running = 0;
+    check_finished = 1;
+    pthread_mutex_unlock(&check_mutex);
+    return NULL;
+}
+
+static int start_update_check(void)
+{
+    pthread_t thread;
+    int rc;
+
+    pthread_mutex_lock(&check_mutex);
+    if (check_running) {
+        pthread_mutex_unlock(&check_mutex);
+        return 0;
+    }
+    check_running = 1;
+    check_finished = 0;
+    check_result = -1;
+    memset(&check_manifest, 0, sizeof(check_manifest));
+    snprintf(check_status, sizeof(check_status), "Pruefung laeuft...");
+    pthread_mutex_unlock(&check_mutex);
+
+    rc = pthread_create(&thread, NULL, update_check_worker, NULL);
+    if (rc != 0) {
+        pthread_mutex_lock(&check_mutex);
+        check_running = 0;
+        snprintf(check_status, sizeof(check_status), "Update-Pruefung konnte nicht gestartet werden");
+        pthread_mutex_unlock(&check_mutex);
+        return -1;
+    }
+    pthread_detach(thread);
+    return 0;
+}
 
 static int build_rows(Row *rows)
 {
     int n = 0;
+    int running;
+    int finished;
+    int result;
     static char tls_mode[32];
+    static char status[UPDATE_CHECK_STATUS_LEN];
+    static char available[96];
+
+    pthread_mutex_lock(&check_mutex);
+    running = check_running;
+    finished = check_finished;
+    result = check_result;
+    snprintf(status, sizeof(status), "%s", check_status);
+    if (finished && result == 0 && check_manifest.version[0]) {
+        int cmp = update_version_compare(check_manifest.version, APP_VERSION);
+        if (cmp > 0) {
+            snprintf(available, sizeof(available), "Neu: %s", check_manifest.version);
+        } else if (cmp == 0) {
+            snprintf(available, sizeof(available), "Aktuell");
+        } else {
+            snprintf(available, sizeof(available), "Server: %s", check_manifest.version);
+        }
+    } else {
+        snprintf(available, sizeof(available), "--");
+    }
+    pthread_mutex_unlock(&check_mutex);
 
     rows[n++] = (Row){"Installiert", APP_VERSION, 0};
     rows[n++] = (Row){"Update URL", update_base_url[0] ? update_base_url : "--", 0};
@@ -33,8 +114,20 @@ static int build_rows(Row *rows)
     rows[n++] = (Row){"Client Zertifikat", update_config_client_cert()[0] ? update_config_client_cert() : "--", 0};
     rows[n++] = (Row){"Client Key", update_config_client_key()[0] ? update_config_client_key() : "--", 0};
     rows[n++] = (Row){"Key Passwort", update_config_client_key_password()[0] ? "gesetzt" : "nicht gesetzt", 0};
-    rows[n++] = (Row){"Nach Updates suchen", "<  Start  >", 1};
+    rows[n++] = (Row){"Verfuegbar", available, 0};
+    rows[n++] = (Row){"Status", status, 0};
+    rows[n++] = (Row){"Nach Updates suchen", running ? "<  Laeuft...  >" : "<  Start  >", 1};
     return n;
+}
+
+static int find_selectable(Row *rows, int count)
+{
+    for (int i = 0; i < count; i++) {
+        if (rows[i].selectable) {
+            return i;
+        }
+    }
+    return 0;
 }
 
 static void keep_visible(int count)
@@ -60,9 +153,12 @@ static void keep_visible(int count)
 
 void updatesettings_reset(void)
 {
-    selection = 9;
+    Row rows[16];
+    int count = build_rows(rows);
+
+    selection = find_selectable(rows, count);
     scroll_offset = 0;
-    keep_visible(10);
+    keep_visible(count);
 }
 
 void updatesettings_handle_event(ScreenContext *c, const SDL_Event *e)
@@ -74,6 +170,10 @@ void updatesettings_handle_event(ScreenContext *c, const SDL_Event *e)
         int b = e->jbutton.button;
         if (b == BUTTON_B) {
             *c->screen = SCREEN_SYSTEM_INFO;
+            return;
+        }
+        if (b == BUTTON_A && rows[selection].selectable) {
+            start_update_check();
             return;
         }
         if (b == BUTTON_DPAD_UP) {
@@ -100,7 +200,7 @@ void updatesettings_handle_event(ScreenContext *c, const SDL_Event *e)
 
     if (e->type == SDL_JOYAXISMOTION && e->jaxis.axis == AXIS_Y) {
         if (!*c->axis_y_lock && abs(e->jaxis.value) > AXIS_DEADZONE) {
-            selection = 9;
+            selection = find_selectable(rows, count);
             keep_visible(count);
             *c->axis_y_lock = 1;
         }
