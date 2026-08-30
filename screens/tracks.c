@@ -10,10 +10,13 @@
 #include <stdio.h>
 #include <string.h>
 
+#define ACTION_HOLD_MS 700U
+
 static int delete_stage = 0;
 static int action_selection = 0;
-static int l1_down = 0;
-static int r1_down = 0;
+static int a_down = 0;
+static int a_long_handled = 0;
+static Uint32 a_down_ticks = 0;
 static char delete_message[256] = "";
 
 static void stop_playback(ScreenContext *c)
@@ -132,6 +135,32 @@ static void confirm_delete(ScreenContext *c)
     }
 }
 
+static void play_selected_track(ScreenContext *c)
+{
+    if (*c->track_count <= 0 || *c->track_index < 0 || *c->track_index >= *c->track_count) {
+        return;
+    }
+
+    int pi = ensure_book_progress(c->book_paths[*c->book_index]);
+    double resume = 0;
+    if (pi >= 0 && progress[pi].track == *c->track_index) {
+        resume = progress[pi].position;
+    }
+    if (*c->music) {
+        Mix_HaltMusic();
+        Mix_FreeMusic(*c->music);
+        *c->music = NULL;
+    }
+    *c->music = play_track(c->tracks, *c->track_index, resume, c->base_position, c->started_ticks, c->paused);
+    if (*c->music) {
+        touch_book_progress(pi);
+        save_state();
+        *c->duration = get_duration(*c->music);
+        *c->last_save = SDL_GetTicks();
+        *c->screen = SCREEN_PLAYER;
+    }
+}
+
 void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
 {
     if (*c->track_count > 0) {
@@ -143,13 +172,18 @@ void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
         }
     }
 
-    if (e->type == SDL_JOYBUTTONUP) {
-        if (e->jbutton.button == BUTTON_L1) {
-            l1_down = 0;
+    if (e->type == SDL_JOYBUTTONUP && e->jbutton.button == BUTTON_A) {
+        if (delete_stage == 0 && a_down) {
+            Uint32 held = SDL_GetTicks() - a_down_ticks;
+            a_down = 0;
+            if (!a_long_handled && held < ACTION_HOLD_MS) {
+                play_selected_track(c);
+            }
+            a_long_handled = 0;
+            return;
         }
-        if (e->jbutton.button == BUTTON_R1) {
-            r1_down = 0;
-        }
+        a_down = 0;
+        a_long_handled = 0;
     }
 
     if (e->type == SDL_JOYBUTTONDOWN) {
@@ -177,27 +211,21 @@ void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
             return;
         }
 
-        if (b == BUTTON_L1) {
-            l1_down = 1;
-            if (r1_down) {
-                open_delete_action(c);
-                return;
+        if (b == BUTTON_A) {
+            if (!a_down) {
+                a_down = 1;
+                a_long_handled = 0;
+                a_down_ticks = SDL_GetTicks();
             }
+            return;
         }
-        if (b == BUTTON_R1) {
-            r1_down = 1;
-            if (l1_down) {
-                open_delete_action(c);
-                return;
-            }
-        }
-
         if (b == BUTTON_B || b == BUTTON_DPAD_LEFT) {
             *c->screen = SCREEN_MENU;
             return;
         }
         if (b == BUTTON_DPAD_RIGHT && *c->track_count > 0) {
-            b = BUTTON_A;
+            play_selected_track(c);
+            return;
         }
         if (b == BUTTON_DPAD_UP) {
             (*c->track_index)--;
@@ -227,27 +255,6 @@ void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
         }
         if (b == BUTTON_R2) {
             *c->track_index = *c->track_count - 1;
-            return;
-        }
-        if (b == BUTTON_A && *c->track_count > 0) {
-            int pi = ensure_book_progress(c->book_paths[*c->book_index]);
-            double resume = 0;
-            if (pi >= 0 && progress[pi].track == *c->track_index) {
-                resume = progress[pi].position;
-            }
-            if (*c->music) {
-                Mix_HaltMusic();
-                Mix_FreeMusic(*c->music);
-                *c->music = NULL;
-            }
-            *c->music = play_track(c->tracks, *c->track_index, resume, c->base_position, c->started_ticks, c->paused);
-            if (*c->music) {
-                touch_book_progress(pi);
-                save_state();
-                *c->duration = get_duration(*c->music);
-                *c->last_save = SDL_GetTicks();
-                *c->screen = SCREEN_PLAYER;
-            }
             return;
         }
     }
@@ -298,6 +305,11 @@ static void render_delete_overlay(ScreenContext *c)
 
 void tracks_render(ScreenContext *c)
 {
+    if (delete_stage == 0 && a_down && !a_long_handled && SDL_GetTicks() - a_down_ticks >= ACTION_HOLD_MS) {
+        open_delete_action(c);
+        a_long_handled = 1;
+    }
+
     menu_font_apply(c->font);
     char book_label[320];
     unsigned int dial_id = ensure_book_dial_id(c->book_paths[*c->book_index]);
@@ -342,7 +354,7 @@ void tracks_render(ScreenContext *c)
         SDL_RenderFillRect(c->renderer, &r);
     }
     draw_text(c->renderer, c->font, "Rechts/A: Start   Links/B: Zurueck   X: System   Y: Hoerspiele", 20, SCREEN_H - 55, c->gray);
-    draw_text(c->renderer, c->font, "L1+R1: Aktion   L2: Anfang   R2: Ende", 20, SCREEN_H - 35, c->gray);
+    draw_text(c->renderer, c->font, "A halten: Aktion   L1/R1: Seite   L2: Anfang   R2: Ende", 20, SCREEN_H - 35, c->gray);
     render_delete_overlay(c);
     menu_font_restore(c->font);
 }
