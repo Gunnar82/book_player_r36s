@@ -1,4 +1,5 @@
 #include "tracks.h"
+#include "menu.h"
 #include "../scanner.h"
 #include "../state.h"
 #include "../audio.h"
@@ -7,8 +8,10 @@
 #include "../local_delete.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 static int delete_stage = 0;
+static int action_selection = 0;
 static int l1_down = 0;
 static int r1_down = 0;
 static char delete_message[256] = "";
@@ -37,6 +40,7 @@ static void refresh_tracks(ScreenContext *c)
     if (*c->track_count <= 0) {
         *c->track_index = 0;
         *c->book_duration = 0.0;
+        c->book_track_counts[*c->book_index] = 0;
         return;
     }
 
@@ -50,34 +54,82 @@ static void refresh_tracks(ScreenContext *c)
     c->book_track_counts[*c->book_index] = *c->track_count;
 }
 
+static void remove_book_from_library(ScreenContext *c, int index)
+{
+    if (index < 0 || index >= *c->book_count) {
+        return;
+    }
+
+    for (int i = index; i + 1 < *c->book_count; i++) {
+        snprintf(c->book_names[i], 256, "%s", c->book_names[i + 1]);
+        snprintf(c->book_paths[i], 512, "%s", c->book_paths[i + 1]);
+        snprintf(c->book_roots[i], 512, "%s", c->book_roots[i + 1]);
+        c->book_track_counts[i] = c->book_track_counts[i + 1];
+    }
+
+    (*c->book_count)--;
+    if (*c->book_count < 0) {
+        *c->book_count = 0;
+    }
+    if (*c->book_count == 0) {
+        *c->book_index = 0;
+    } else if (*c->book_index >= *c->book_count) {
+        *c->book_index = *c->book_count - 1;
+    }
+    *c->track_count = 0;
+    *c->track_index = 0;
+    *c->book_duration = 0.0;
+}
+
 static void open_delete_action(ScreenContext *c)
 {
     if (*c->track_count <= 0 || *c->track_index < 0 || *c->track_index >= *c->track_count) {
         return;
     }
+    action_selection = 0;
     delete_stage = 1;
     delete_message[0] = '\0';
 }
 
 static void confirm_delete(ScreenContext *c)
 {
-    if (*c->track_count <= 0 || *c->track_index < 0 || *c->track_index >= *c->track_count) {
+    if (*c->book_index < 0 || *c->book_index >= *c->book_count) {
         delete_stage = 0;
         return;
     }
 
-    char path[512];
-    snprintf(path, sizeof(path), "%s", c->tracks[*c->track_index].path);
     stop_playback(c);
 
-    if (local_delete_file(path, c->storage_paths, *c->storage_path_count) == 0) {
-        snprintf(delete_message, sizeof(delete_message), "Datei geloescht");
-        refresh_tracks(c);
-        menu_invalidate();
-    } else {
-        snprintf(delete_message, sizeof(delete_message), "Loeschen fehlgeschlagen");
+    if (action_selection == 0) {
+        if (*c->track_count <= 0 || *c->track_index < 0 || *c->track_index >= *c->track_count) {
+            delete_stage = 0;
+            return;
+        }
+        char path[512];
+        snprintf(path, sizeof(path), "%s", c->tracks[*c->track_index].path);
+        if (local_delete_file(path, c->storage_paths, *c->storage_path_count) == 0) {
+            snprintf(delete_message, sizeof(delete_message), "Datei geloescht");
+            refresh_tracks(c);
+            menu_invalidate();
+        } else {
+            snprintf(delete_message, sizeof(delete_message), "Loeschen fehlgeschlagen");
+        }
+        delete_stage = 3;
+        return;
     }
-    delete_stage = 3;
+
+    int deleted_index = *c->book_index;
+    char path[512];
+    snprintf(path, sizeof(path), "%s", c->book_paths[deleted_index]);
+    if (local_delete_directory(path, c->storage_paths, *c->storage_path_count) == 0) {
+        remove_book_from_library(c, deleted_index);
+        menu_invalidate();
+        delete_stage = 0;
+        *c->screen = SCREEN_MENU;
+    } else {
+        snprintf(delete_message, sizeof(delete_message), "Ordner konnte nicht geloescht werden");
+        delete_stage = 3;
+    }
 }
 
 void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
@@ -106,6 +158,10 @@ void tracks_handle_event(ScreenContext *c, const SDL_Event *e)
         if (delete_stage != 0) {
             if (b == BUTTON_B || b == BUTTON_DPAD_LEFT) {
                 delete_stage = 0;
+                return;
+            }
+            if (delete_stage == 1 && (b == BUTTON_DPAD_UP || b == BUTTON_DPAD_DOWN)) {
+                action_selection = 1 - action_selection;
                 return;
             }
             if (b == BUTTON_A || b == BUTTON_DPAD_RIGHT) {
@@ -216,22 +272,27 @@ static void render_delete_overlay(ScreenContext *c)
         return;
     }
 
-    SDL_Rect box = {45, 145, SCREEN_W - 90, 165};
+    SDL_Rect box = {45, 130, SCREEN_W - 90, 195};
     SDL_SetRenderDrawColor(c->renderer, 25, 25, 30, 245);
     SDL_RenderFillRect(c->renderer, &box);
     SDL_SetRenderDrawColor(c->renderer, 180, 180, 190, 255);
     SDL_RenderDrawRect(c->renderer, &box);
 
     if (delete_stage == 1) {
-        draw_text(c->renderer, c->font, "Aktion", 70, 170, c->gray);
-        draw_text(c->renderer, c->font, "Datei loeschen", 70, 205, c->selected);
-        draw_text(c->renderer, c->font, "A: Auswaehlen   B: Abbrechen", 70, 260, c->gray);
+        draw_text(c->renderer, c->font, "Aktion", 70, 150, c->gray);
+        draw_text(c->renderer, c->font, "Datei loeschen", 85, 190, action_selection == 0 ? c->selected : c->white);
+        draw_text(c->renderer, c->font, "Hoerspielordner loeschen", 85, 225, action_selection == 1 ? c->selected : c->white);
+        draw_text(c->renderer, c->font, "Hoch/Runter   A: Auswaehlen   B: Abbrechen", 70, 280, c->gray);
     } else if (delete_stage == 2) {
-        draw_text(c->renderer, c->font, "Datei wirklich loeschen?", 70, 180, c->selected);
-        draw_text(c->renderer, c->font, "A: Ja, loeschen   B: Nein", 70, 245, c->gray);
+        const char *question = action_selection == 0 ? "Datei wirklich loeschen?" : "Ordner samt Inhalt wirklich loeschen?";
+        draw_text(c->renderer, c->font, question, 70, 175, c->selected);
+        if (action_selection == 1) {
+            draw_text(c->renderer, c->font, "Alle Dateien im Hoerspielordner werden entfernt.", 70, 215, c->white);
+        }
+        draw_text(c->renderer, c->font, "A: Ja, loeschen   B: Nein", 70, 270, c->gray);
     } else {
         draw_text(c->renderer, c->font, delete_message, 70, 190, c->selected);
-        draw_text(c->renderer, c->font, "A/B: Schliessen", 70, 245, c->gray);
+        draw_text(c->renderer, c->font, "A/B: Schliessen", 70, 255, c->gray);
     }
 }
 
