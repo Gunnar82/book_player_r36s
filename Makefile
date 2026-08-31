@@ -9,7 +9,10 @@ GPM2804_DIST := dist-batocera
 
 UPDATE_BASE_URL ?=
 
-.PHONY: r36s gpm2804 updatepackage clean-r36s clean-gpm2804 clean
+.PHONY: all r36s gpm2804 updatepackage clean-r36s clean-gpm2804 clean
+
+all: r36s gpm2804
+	@UPDATE_BASE_URL="$(UPDATE_BASE_URL)" bash ./scripts/create_update_package.sh
 
 r36s:
 	rm -rf ./$(R36S_DIST)
