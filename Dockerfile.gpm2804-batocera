@@ -7,7 +7,7 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY Makefile.gpm2804 ./Makefile
 COPY screens ./screens
-RUN grep 'APP_VERSION "0.3.63"' config.h && \
+RUN grep 'APP_VERSION "0.3.64"' config.h && \
     grep -q 'extern char download_base_url' storage.h && grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'extern int menu_font_size' state.h && grep -q 'mpris_bridge_init' mpris_bridge.h && \
     grep -q 'media_feedback_show' media_feedback.h && grep -q 'media_capable' media_keys.h && \
