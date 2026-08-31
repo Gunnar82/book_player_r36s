@@ -7,7 +7,9 @@ R36S_DIST := dist-r36s
 GPM2804_DOCKERFILE := Dockerfile.gpm2804-batocera
 GPM2804_DIST := dist-batocera
 
-.PHONY: r36s gpm2804 clean-r36s clean-gpm2804 clean
+UPDATE_BASE_URL ?=
+
+.PHONY: r36s gpm2804 updatepackage clean-r36s clean-gpm2804 clean
 
 r36s:
 	rm -rf ./$(R36S_DIST)
@@ -27,6 +29,9 @@ gpm2804:
 		.
 	@echo
 	@echo "GPM2804/Batocera fertig: ./$(GPM2804_DIST)"
+
+updatepackage: r36s gpm2804
+	@UPDATE_BASE_URL="$(UPDATE_BASE_URL)" bash ./scripts/create_update_package.sh
 
 clean-r36s:
 	-docker rm -f $(R36S_CONTAINER)
