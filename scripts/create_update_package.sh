@@ -11,7 +11,7 @@ set -euo pipefail
 #
 # Inhalt des ZIPs:
 #   updates/
-#     version.json
+#     latest.json
 #     <VERSION>/
 #       r36s/hoerspiel_player
 #       gpm2804/hoerspiel_player
@@ -56,7 +56,7 @@ PACKAGE_UPDATES_DIR="$PACKAGE_ROOT/updates"
 VERSION_DIR="$PACKAGE_UPDATES_DIR/$VERSION"
 R36S_DIR="$VERSION_DIR/r36s"
 GPM2804_DIR="$VERSION_DIR/gpm2804"
-VERSION_JSON="$PACKAGE_UPDATES_DIR/version.json"
+LATEST_JSON="$PACKAGE_UPDATES_DIR/latest.json"
 OUTPUT_DIR="updates"
 ZIP_FILE="$OUTPUT_DIR/update-$VERSION.zip"
 
@@ -73,7 +73,7 @@ cp "$GPM2804_BINARY" "$GPM2804_DIR/hoerspiel_player"
 R36S_SHA256="$(sha256sum "$R36S_DIR/hoerspiel_player" | awk '{print $1}')"
 GPM2804_SHA256="$(sha256sum "$GPM2804_DIR/hoerspiel_player" | awk '{print $1}')"
 
-cat > "$VERSION_JSON" <<EOF
+cat > "$LATEST_JSON" <<EOF
 {
   "version": "$VERSION",
   "r36s": {
