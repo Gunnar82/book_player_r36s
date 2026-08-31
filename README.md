@@ -2,7 +2,7 @@
 
 Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist primär für den **R36S** entwickelt und enthält zusätzlich einen **Waveshare GPM2804 / Batocera**-Build.
 
-**Aktueller Stand: 0.3.58**
+**Aktueller Stand: 0.3.61**
 
 `main` ist die maßgebliche Quelle für stabile Projektstände. Entwicklungsregeln und die Wiederaufnahme nach Kontextverlust stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
@@ -20,6 +20,7 @@ Hörspiel- und Audio-Player für Handhelds auf Basis von SDL2. Das Projekt ist p
 - Downloads aus XML-/nginx-Listings, HTTPS und optional mTLS
 - rekursive Ordnerdownloads, Mehrfachauswahl, Fortschritt, Downloadrate und Restzeitschätzung
 - GPM2804/Batocera: asynchrone Hintergrunddownloads mit Statusanzeige im Wiedergabe-Screen
+- Self-Update über HTTPS mit optional mTLS, plattformspezifischem Manifest, SHA256-Prüfung und `.old`-Backup
 - Online-Streams aus XML-Quellen und Stream-Favoriten über `stationuuid`
 - Stream-Wiedergabe über `mpv`
 - MPRIS2, BlueZ/AVRCP, Bluetooth-Hotplug und USB-/Headset-Mediatasten
@@ -64,6 +65,10 @@ Wichtige Dateien und Bereiche:
 - `download.c/.h` – synchrone Download-/Listinglogik und rekursive Auswahl
 - `background_download.c/.h` – threadsicherer asynchroner Downloadjob für GPM2804/Batocera
 - `background_download_ui.c` – Hintergrundumschaltung, Statusansicht und kompakte Player-Anzeige
+- `update_config.c/.h` – Konfiguration für den Self-Updater
+- `update_check.c/.h` – Abruf und Auswertung von `latest.json`
+- `update_install.c/.h` – Download, SHA256-Prüfung, Staging, Backup und Aktivierung der neuen Binary
+- `screens/updatesettings.c` – Update-Prüfung, Download und Installation im UI
 - `streaming.c/.h` – Online-Streams und mpv-Steuerung
 - `bluetooth.c/.h` – BlueZ-Erkennung, Bluetooth-Status und Autoconnect
 - `mpris_bridge.c/.h` – MPRIS2-/BlueZ-Media-Anbindung
@@ -84,7 +89,7 @@ Docker wird für reproduzierbare ARM64-Builds verwendet.
 make r36s
 ```
 
-Das Ergebnis wird nach `dist-r36s/` exportiert.
+Das Ergebnis wird nach `dist-r36s/` exportiert. Der Build verwendet `Dockerfile` und `Makefile.r36s`.
 
 ### GPM2804 / Batocera
 
@@ -92,7 +97,7 @@ Das Ergebnis wird nach `dist-r36s/` exportiert.
 make gpm2804
 ```
 
-Das Ergebnis wird nach `dist-batocera/` exportiert. Zusätzlich werden `config.gpm2804.ini` und `hoerspiel.sh` erzeugt.
+Das Ergebnis wird nach `dist-batocera/` exportiert. Zusätzlich werden `config.gpm2804.ini` und `hoerspiel.sh` erzeugt. Der Build verwendet `Dockerfile.gpm2804-batocera` und `Makefile.gpm2804`.
 
 ### Utility-/Config-Regressionstest
 
@@ -165,6 +170,55 @@ Downloads unterstützen HTTPS und optional Client-Zertifikate. Der An/Aus-Schalt
 
 Im Fortschrittsfenster werden aktuelle Datei, aktueller Ordner, Datei-/Gesamtfortschritt, Restzeit und Downloadrate angezeigt. Auf dem GPM2804/Batocera kann ein laufender Download mit `Y` in den Hintergrund geschickt werden. `B` bricht den Job kontrolliert ab. Während eines Hintergrunddownloads zeigt der Wiedergabe-Screen kompakt beispielsweise `DL 42% · 3.1 MB/s · 17/63`. Wird das Download-Menü während eines aktiven Jobs erneut geöffnet, erscheint wieder dessen Fortschrittsansicht. Es kann nur ein Downloadjob gleichzeitig laufen.
 
+### Self-Update
+
+```ini
+[updates]
+enabled=0
+base_url=https://example.org/updates
+use_download_tls=1
+verify_peer=1
+verify_host=1
+ca_cert=
+client_cert=
+client_key=
+client_key_password=
+```
+
+Self-Updates sind standardmäßig deaktiviert. `base_url` muss HTTPS verwenden. Mit `use_download_tls=1` übernimmt der Updater CA-, Client-Zertifikat-, Client-Key- und TLS-Prüfeinstellungen aus `[download]`; bei `0` werden die Werte aus `[updates]` verwendet.
+
+Der Server stellt unter `<base_url>/latest.json` ein Manifest bereit. Beispiel:
+
+```json
+{
+  "version": "0.3.61",
+  "r36s": {
+    "url": "https://example.org/updates/0.3.61/r36s/hoerspiel_player",
+    "sha256": "<64-stelliger-sha256>"
+  },
+  "gpm2804": {
+    "url": "https://example.org/updates/0.3.61/gpm2804/hoerspiel_player",
+    "sha256": "<64-stelliger-sha256>"
+  }
+}
+```
+
+`BUILD_R36S` verwendet den Manifest-Eintrag `r36s`, `BUILD_BATOCERA` den Eintrag `gpm2804`. Die heruntergeladene Binary wird zunächst nach `/tmp/hoerspiel_player.new` geschrieben und nur nach erfolgreicher SHA256-Prüfung zur Installation freigegeben. Bei der Installation wird die aktuelle Binary anhand von `/proc/self/exe` ermittelt, die neue Datei auf dasselbe Dateisystem kopiert und die bisherige Binary als `<binary>.old` behalten. Nach erfolgreicher Installation ist ein Neustart des Players erforderlich.
+
+Getesteter Serveraufbau:
+
+```text
+/updates/
+├── latest.json
+└── 0.3.61/
+    ├── r36s/
+    │   └── hoerspiel_player
+    └── gpm2804/
+        └── hoerspiel_player
+```
+
+Die R36S- und GPM2804-Dateien müssen jeweils aus ihrem eigenen Docker-Build stammen. Eine Binary des anderen Targets darf nicht wiederverwendet werden.
+
 ### Streams
 
 ```ini
@@ -205,14 +259,9 @@ Die Audio-Systemabfragen verwenden ebenfalls Hintergrundthreads und mutex-gesch�
 
 Bluetooth-MAC-Adressen werden vor Shell-basierten `bluetoothctl`-Aufrufen strikt validiert.
 
-## Getesteter Stand 0.3.58
+## Getesteter Stand 0.3.61
 
-Auf R36S und GPM2804/Batocera wurden während der Entwicklung unter anderem die plattformspezifischen Bluetooth- und Menüanpassungen geprüft. Für die Audioeinstellungen gilt:
-
-- globale Ausgangslautstärke über ALSA `Master`
-- getrennte Player-Lautstärke
-- zusätzliche Bluetooth-Sink-Lautstärke bei verfügbarem Bluetooth-Audio-Sink
-- asynchrone Statusaktualisierung im Drei-Sekunden-Intervall, damit das Einstellungsmenü flüssig bedienbar bleibt
+Der Self-Updater wurde auf **R36S** und **GPM2804/Batocera** erfolgreich mit einem realen Versionswechsel getestet. Dabei wurden plattformspezifisches Manifest, HTTPS/mTLS, Download, SHA256-Prüfung, Installation, `.old`-Backup und der anschließende Start der neuen Version geprüft. Ein SHA256-Fehler sperrt die Installation; nach korrigiertem Manifest und erneut erfolgreichem Download wird die Installation freigegeben.
 
 Weitere bestehende Tests umfassen unter anderem Builds, Utility-/Config-Regressionstests, Bluetooth, Streams, Favoriten, Downloads, Hintergrunddownloads und System-Shutdown auf den jeweils unterstützten Plattformen.
 
@@ -234,7 +283,7 @@ Die vollständigen Regeln stehen in [PROJECT_WORKFLOW.md](PROJECT_WORKFLOW.md).
 
 Die README beschreibt den **aktuellen** Projektstand und ist kein chronologisches Changelog. Ältere Entwicklungsschritte bleiben über die Git-Historie sowie Changelog-, Release- und Testdateien nachvollziehbar.
 
-Aktuelle Version laut `config.h`: **0.3.58**.
+Aktuelle Version laut `config.h`: **0.3.61**.
 
 ## Lizenz und Kontakt
 
