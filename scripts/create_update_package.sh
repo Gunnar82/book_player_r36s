@@ -7,7 +7,7 @@ set -euo pipefail
 #   ./scripts/create_update_package.sh https://DEIN-SERVER
 #
 # Ergebnis:
-#   update-<VERSION>.zip
+#   updates/update-<VERSION>.zip
 #
 # Inhalt des ZIPs:
 #   updates/
@@ -52,16 +52,18 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 PACKAGE_ROOT="update-package"
-UPDATES_DIR="$PACKAGE_ROOT/updates"
-VERSION_DIR="$UPDATES_DIR/$VERSION"
+PACKAGE_UPDATES_DIR="$PACKAGE_ROOT/updates"
+VERSION_DIR="$PACKAGE_UPDATES_DIR/$VERSION"
 R36S_DIR="$VERSION_DIR/r36s"
 GPM2804_DIR="$VERSION_DIR/gpm2804"
-VERSION_JSON="$UPDATES_DIR/version.json"
-ZIP_FILE="update-$VERSION.zip"
+VERSION_JSON="$PACKAGE_UPDATES_DIR/version.json"
+OUTPUT_DIR="updates"
+ZIP_FILE="$OUTPUT_DIR/update-$VERSION.zip"
 
 echo "Erstelle Update-ZIP fuer Version $VERSION ..."
 
 rm -rf "$PACKAGE_ROOT"
+mkdir -p "$OUTPUT_DIR"
 rm -f "$ZIP_FILE"
 mkdir -p "$R36S_DIR" "$GPM2804_DIR"
 
@@ -94,8 +96,8 @@ rm -rf "$PACKAGE_ROOT"
 
 echo
 echo "Update-ZIP fertig: $ZIP_FILE"
-echo "Version:        $VERSION"
-echo "SHA256 R36S:   $R36S_SHA256"
+echo "Version:         $VERSION"
+echo "SHA256 R36S:    $R36S_SHA256"
 echo "SHA256 GPM2804: $GPM2804_SHA256"
 echo
 echo "ZIP-Inhalt:"
