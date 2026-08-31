@@ -1,4 +1,5 @@
 #include "systemmenu.h"
+#include "systeminfo.h"
 #include "../ui.h"
 #include "../storage.h"
 #include "../systemstats.h"
@@ -12,6 +13,7 @@
 static int selection = 0;
 static const char *items[] = {
     "Einstellungen",
+    "Informationen",
     "Downloads",
     "Streams",
     "Beenden",
@@ -21,8 +23,8 @@ static const char *items[] = {
 
 static int item_enabled(int index)
 {
-    if(index==1) return downloads_enabled && network_connection_active();
-    if(index==2) return network_connection_active() && stream_xml_url[0];
+    if(index==2) return downloads_enabled && network_connection_active();
+    if(index==3) return network_connection_active() && stream_xml_url[0];
     return 1;
 }
 
@@ -41,15 +43,22 @@ static void activate(ScreenContext *c)
 {
     if(!item_enabled(selection)) return;
     switch (selection) {
-        case 0: *c->screen = SCREEN_SYSTEM_INFO; break;
+        case 0:
+            systeminfo_set_information_mode(0);
+            *c->screen = SCREEN_SYSTEM_INFO;
+            break;
         case 1:
-            if (downloads_enabled && network_connection_active()) { downloadbrowser_reset(); *c->screen = SCREEN_DOWNLOADS; }
+            systeminfo_set_information_mode(1);
+            *c->screen = SCREEN_SYSTEM_INFO;
             break;
         case 2:
+            if (downloads_enabled && network_connection_active()) { downloadbrowser_reset(); *c->screen = SCREEN_DOWNLOADS; }
+            break;
+        case 3:
             if (network_connection_active() && stream_xml_url[0]) { streams_reset(); *c->screen = SCREEN_STREAMS; }
             break;
-        case 3: *c->running = 0; break;
-        case 4: c->shutdown_fn(c->music); *c->running = 0; break;
+        case 4: *c->running = 0; break;
+        case 5: c->shutdown_fn(c->music); *c->running = 0; break;
     }
 }
 
@@ -79,17 +88,17 @@ void systemmenu_render(ScreenContext *c)
     menu_font_apply(c->font);
     draw_text(c->renderer, c->font, "Systemmenue", 20, 20, c->selected);
 
-    int y = 90;
+    int y = 80;
     int network_ok = network_connection_active();
     for (int i = 0; i < ITEM_COUNT; i++) {
         int disabled = 0;
         char label[128];
-        if (i == 1) {
+        if (i == 2) {
             disabled = (!downloads_enabled || !network_ok);
             if (!downloads_enabled) snprintf(label,sizeof(label),"Downloads  [deaktiviert]");
             else if (!network_ok) snprintf(label,sizeof(label),"Downloads  [kein Netzwerk]");
             else snprintf(label,sizeof(label),"%s",items[i]);
-        } else if (i == 2) {
+        } else if (i == 3) {
             disabled = (!network_ok || !stream_xml_url[0]);
             if (!stream_xml_url[0]) snprintf(label,sizeof(label),"Streams  [XML fehlt]");
             else if (!network_ok) snprintf(label,sizeof(label),"Streams  [kein Netzwerk]");
@@ -98,7 +107,7 @@ void systemmenu_render(ScreenContext *c)
 
         SDL_Color col = disabled ? c->gray : ((i == selection) ? c->selected : c->white);
         draw_text(c->renderer, c->font, label, 45, y, col);
-        y += menu_line_height()+10;
+        y += menu_line_height()+8;
     }
 
     draw_text(c->renderer, c->font,
