@@ -19,6 +19,9 @@ SOURCES := \
 	hardware_config_save.c \
 	stream_config.c \
 	stream_favorites.c \
+	update_config.c \
+	update_check.c \
+	update_install.c \
 	state.c \
 	backlight.c \
 	battery.c \
@@ -56,6 +59,7 @@ SOURCES := \
 	screens/downloadbrowser.c \
 	screens/streams.c \
 	screens/streamsettings.c \
+	screens/updatesettings.c \
 	screens/logview.c \
 	screens/bluetooth.c \
 	screens/downloadsettings.c

@@ -8,14 +8,15 @@ WORKDIR /build
 COPY *.c *.h ./
 COPY Makefile.r36s ./Makefile
 COPY screens ./screens
-RUN grep 'APP_VERSION "0.3.58"' config.h && \
+RUN grep 'APP_VERSION "0.3.62"' config.h && \
     grep -q 'extern char download_base_url' storage.h && \
     grep -q 'extern int display_timeout_seconds' state.h && \
     grep -q 'mpris_bridge_init' mpris_bridge.h && \
     grep -q 'media_feedback_show' media_feedback.h && \
     grep -q 'media_capable' media_keys.h && \
     grep -q 'SCREEN_DOWNLOADS' screens.h && \
-    test -f download.c && test -f mpris_bridge.c && test -f bluetooth.c && \
+    test -f update_check.c && test -f update_check.h && test -f update_install.c && test -f update_install.h && \
+    test -f screens/updatesettings.c && test -f download.c && test -f mpris_bridge.c && test -f bluetooth.c && \
     test -f bluetooth_audio_sink.c && test -f hfp_gateway.c && test -f pbap_phonebook.c && \
     test -f battery_bluez.c && grep -q 'org.bluez.Device1' bluetooth.c && \
     test -f screens/bluetooth.c && test -f screens/downloadsettings.c && \

@@ -26,6 +26,7 @@
 #include "hfp_gateway.h"
 #include "pbap_phonebook.h"
 #include "streaming.h"
+#include "update_config.h"
 #include "app_log.h"
 #include "input_config.h"
 #include "screens/menu.h"
@@ -39,6 +40,7 @@
 #include "screens/streams.h"
 #include "screens/downloadsettings.h"
 #include "screens/streamsettings.h"
+#include "screens/updatesettings.h"
 #include "screens/bluetooth.h"
 #include "screens/logview.h"
 
@@ -72,7 +74,7 @@ int main(int argc,char **argv)
 {
  (void)argc;
  (void)argv;
- srand((unsigned int)time(NULL));app_log_clear();app_logf("Start %s %s",APP_NAME,APP_VERSION);setup_state_path();load_state();usage_app_starts++;load_playback_config();load_download_config();streaming_load_config();input_config_load();bluetooth_load_config();
+ srand((unsigned int)time(NULL));app_log_clear();app_logf("Start %s %s",APP_NAME,APP_VERSION);setup_state_path();load_state();usage_app_starts++;load_playback_config();load_download_config();update_config_load();streaming_load_config();input_config_load();bluetooth_load_config();
  network_log_if_changed();
  bluetooth_log_if_changed();int bluetooth_present=bluetooth_adapter_present();if(bluetooth_present)bluetooth_autoconnect_start();else app_logf("Bluetooth: kein Adapter, Funktionen deaktiviert");
  if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_JOYSTICK)!=0){fprintf(stderr,"SDL_Init: %s\n",SDL_GetError());return 1;}
@@ -134,7 +136,7 @@ Uint32 last_connectivity_state_check=0;
   SDL_Event repeat_e;
   int repeat_enabled=(screen==SCREEN_MENU||screen==SCREEN_TRACKS||screen==SCREEN_SYSTEM_INFO||
                       screen==SCREEN_SYSTEM_MENU||screen==SCREEN_DOWNLOADS||screen==SCREEN_STREAMS||
-                      screen==SCREEN_LOG||screen==SCREEN_BLUETOOTH||screen==SCREEN_DOWNLOAD_SETTINGS||screen==SCREEN_STREAM_SETTINGS);
+                      screen==SCREEN_LOG||screen==SCREEN_BLUETOOTH||screen==SCREEN_DOWNLOAD_SETTINGS||screen==SCREEN_STREAM_SETTINGS||screen==SCREEN_UPDATE_SETTINGS);
   if(input_repeat_event(&repeat_e,SDL_GetTicks(),repeat_enabled)){
    if((repeat_e.jbutton.button==BUTTON_L1||repeat_e.jbutton.button==BUTTON_R1) && screen!=SCREEN_STREAMS){
     /* L1/R1-Haltewiederholung nur in der Streams-Liste. */
@@ -157,7 +159,7 @@ Uint32 last_connectivity_state_check=0;
     }else{
 if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_X){screen=SCREEN_SYSTEM_MENU;continue;}if(e.jbutton.button==BUTTON_START){if(!music&&track_count>0){music=play_track(tracks,track_index,base_position,&base_position,&started_ticks,&paused);if(music){duration=get_duration(music);last_save=SDL_GetTicks();}}else if(music){if(paused){Mix_ResumeMusic();started_ticks=SDL_GetTicks();paused=0;}else if(Mix_PlayingMusic()){base_position=get_position(base_position,started_ticks,0);Mix_PauseMusic();paused=1;}}continue;}if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_Y){screen=(screen==SCREEN_PLAYER)?SCREEN_MENU:SCREEN_PLAYER;continue;}}}
    ScreenContext screen_ctx={renderer,font,white,selected,gray,&screen,&running,&book_index,&track_index,&book_count,&track_count,book_names,book_paths,tracks,&music,&base_position,&started_ticks,&duration,track_durations,&book_duration,&paused,&last_save,&axis_y_lock,&axis_x_lock,&sleep_timer_active,&sleep_timer_minutes,&sleep_timer_end_ticks,storage_paths,&storage_path_count,book_roots,book_track_counts,&cpu_usage,&ram_usage,&cpu_temperature,&battery_percent,&battery_charging,&idle_timer_remaining_ms,do_shutdown};
-   switch(screen){case SCREEN_MENU:menu_handle_event(&screen_ctx,&e);break;case SCREEN_TRACKS:tracks_handle_event(&screen_ctx,&e);break;case SCREEN_PLAYER:player_handle_event(&screen_ctx,&e);break;case SCREEN_SLEEP_TIMER:sleeptimer_handle_event(&screen_ctx,&e);break;case SCREEN_SYSTEM_INFO:systeminfo_handle_event(&screen_ctx,&e);break;case SCREEN_BUTTON_DEBUG:buttondebug_handle_event(&screen_ctx,&e);break;case SCREEN_SYSTEM_MENU:systemmenu_handle_event(&screen_ctx,&e);break;case SCREEN_DOWNLOADS:downloadbrowser_handle_event(&screen_ctx,&e);idle_timer_last_tick=SDL_GetTicks();break;case SCREEN_STREAMS:streams_handle_event(&screen_ctx,&e);break;case SCREEN_LOG:logview_handle_event(&screen_ctx,&e);break;case SCREEN_BLUETOOTH:bluetoothscreen_handle_event(&screen_ctx,&e);break;case SCREEN_DOWNLOAD_SETTINGS:downloadsettings_handle_event(&screen_ctx,&e);break;case SCREEN_STREAM_SETTINGS:streamsettings_handle_event(&screen_ctx,&e);break;}
+   switch(screen){case SCREEN_MENU:menu_handle_event(&screen_ctx,&e);break;case SCREEN_TRACKS:tracks_handle_event(&screen_ctx,&e);break;case SCREEN_PLAYER:player_handle_event(&screen_ctx,&e);break;case SCREEN_SLEEP_TIMER:sleeptimer_handle_event(&screen_ctx,&e);break;case SCREEN_SYSTEM_INFO:systeminfo_handle_event(&screen_ctx,&e);break;case SCREEN_BUTTON_DEBUG:buttondebug_handle_event(&screen_ctx,&e);break;case SCREEN_SYSTEM_MENU:systemmenu_handle_event(&screen_ctx,&e);break;case SCREEN_DOWNLOADS:downloadbrowser_handle_event(&screen_ctx,&e);idle_timer_last_tick=SDL_GetTicks();break;case SCREEN_STREAMS:streams_handle_event(&screen_ctx,&e);break;case SCREEN_LOG:logview_handle_event(&screen_ctx,&e);break;case SCREEN_BLUETOOTH:bluetoothscreen_handle_event(&screen_ctx,&e);break;case SCREEN_DOWNLOAD_SETTINGS:downloadsettings_handle_event(&screen_ctx,&e);break;case SCREEN_STREAM_SETTINGS:streamsettings_handle_event(&screen_ctx,&e);break;case SCREEN_UPDATE_SETTINGS:updatesettings_handle_event(&screen_ctx,&e);break;}
   }
   double mpris_pos=music?get_position(base_position,started_ticks,paused):base_position;
   char mpris_title[256]="",mpris_album_base[256]="",mpris_album[320]="",mpris_artist[256]="";
@@ -222,7 +224,7 @@ if(screen!=SCREEN_DOWNLOADS&&screen!=SCREEN_STREAMS&&e.jbutton.button==BUTTON_X)
    SDL_SetRenderDrawColor(renderer,selected.r,selected.g,selected.b,255);
    SDL_RenderDrawRect(renderer,&lock_shackle);
    SDL_RenderFillRect(renderer,&lock_body);
-  }else{switch(screen){case SCREEN_MENU:menu_render(&screen_ctx);break;case SCREEN_TRACKS:tracks_render(&screen_ctx);break;case SCREEN_PLAYER:player_render(&screen_ctx);break;case SCREEN_SLEEP_TIMER:sleeptimer_render(&screen_ctx);break;case SCREEN_SYSTEM_INFO:systeminfo_render(&screen_ctx);break;case SCREEN_BUTTON_DEBUG:buttondebug_render(&screen_ctx);break;case SCREEN_SYSTEM_MENU:systemmenu_render(&screen_ctx);break;case SCREEN_DOWNLOADS:downloadbrowser_render(&screen_ctx);break;case SCREEN_STREAMS:streams_render(&screen_ctx);break;case SCREEN_LOG:logview_render(&screen_ctx);break;case SCREEN_BLUETOOTH:bluetoothscreen_render(&screen_ctx);break;case SCREEN_DOWNLOAD_SETTINGS:downloadsettings_render(&screen_ctx);break;case SCREEN_STREAM_SETTINGS:streamsettings_render(&screen_ctx);break;}}
+  }else{switch(screen){case SCREEN_MENU:menu_render(&screen_ctx);break;case SCREEN_TRACKS:tracks_render(&screen_ctx);break;case SCREEN_PLAYER:player_render(&screen_ctx);break;case SCREEN_SLEEP_TIMER:sleeptimer_render(&screen_ctx);break;case SCREEN_SYSTEM_INFO:systeminfo_render(&screen_ctx);break;case SCREEN_BUTTON_DEBUG:buttondebug_render(&screen_ctx);break;case SCREEN_SYSTEM_MENU:systemmenu_render(&screen_ctx);break;case SCREEN_DOWNLOADS:downloadbrowser_render(&screen_ctx);break;case SCREEN_STREAMS:streams_render(&screen_ctx);break;case SCREEN_LOG:logview_render(&screen_ctx);break;case SCREEN_BLUETOOTH:bluetoothscreen_render(&screen_ctx);break;case SCREEN_DOWNLOAD_SETTINGS:downloadsettings_render(&screen_ctx);break;case SCREEN_STREAM_SETTINGS:streamsettings_render(&screen_ctx);break;case SCREEN_UPDATE_SETTINGS:updatesettings_render(&screen_ctx);break;}}
   #ifdef BUILD_BATOCERA
   if(display_needs_software_blank()){
    SDL_SetRenderDrawColor(renderer,0,0,0,255);

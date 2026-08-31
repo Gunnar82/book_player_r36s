@@ -43,6 +43,21 @@ client_cert=
 client_key=
 client_key_password=
 
+[updates]
+# Self-Updates sind standardmaessig deaktiviert.
+enabled=0
+# HTTPS-Basis-URL fuer Manifest und Update-Dateien.
+base_url=
+# 1 = TLS/CA/Client-Zertifikat/Key aus [download] verwenden.
+# 0 = die folgenden update-spezifischen TLS-Werte verwenden.
+use_download_tls=1
+verify_peer=1
+verify_host=1
+ca_cert=
+client_cert=
+client_key=
+client_key_password=
+
 [bluetooth]
 # Nur paired + trusted Geraete koennen im Player ausgewaehlt werden.
 autoconnect=0
