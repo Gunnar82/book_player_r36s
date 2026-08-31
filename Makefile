@@ -9,9 +9,9 @@ GPM2804_DIST := dist-batocera
 
 UPDATE_BASE_URL ?=
 
-.PHONY: all r36s gpm2804 updatepackage clean-r36s clean-gpm2804 clean
+.PHONY: all r36s gpm2804 updatepackage check-update-base-url clean-r36s clean-gpm2804 clean
 
-all: r36s gpm2804
+all: check-update-base-url r36s gpm2804
 	@UPDATE_BASE_URL="$(UPDATE_BASE_URL)" bash ./scripts/create_update_package.sh
 
 r36s:
@@ -33,7 +33,14 @@ gpm2804:
 	@echo
 	@echo "GPM2804/Batocera fertig: ./$(GPM2804_DIST)"
 
-updatepackage: r36s gpm2804
+check-update-base-url:
+	@if [[ -z "$(strip $(UPDATE_BASE_URL))" ]]; then \
+		echo "Fehler: UPDATE_BASE_URL ist verpflichtend."; \
+		echo "Aufruf: make all UPDATE_BASE_URL=https://DEIN-SERVER"; \
+		exit 1; \
+	fi
+
+updatepackage: check-update-base-url r36s gpm2804
 	@UPDATE_BASE_URL="$(UPDATE_BASE_URL)" bash ./scripts/create_update_package.sh
 
 clean-r36s:
