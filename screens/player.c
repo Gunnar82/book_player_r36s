@@ -16,8 +16,6 @@ static char stream_meta_title[512]="";
 static char stream_meta_extra[128]="";
 static char stream_meta_description[512]="";
 
-
-
 static Uint32 stream_title_scroll_started=0;
 static char stream_title_scroll_text[256]="";
 
@@ -160,7 +158,26 @@ void player_handle_event(ScreenContext *c,const SDL_Event *e){
 void player_render(ScreenContext *c){
  if(streaming_session_active()){
   int running=streaming_is_active();
+  int paused=streaming_is_paused();
   Uint32 now=SDL_GetTicks();
+  char battery[64],vol[64];
+
+  if(c->battery_percent&&*c->battery_percent>=0){
+   if(c->battery_charging&&*c->battery_charging==1){
+    int rem=get_battery_charge_remaining_minutes();
+    if(rem==0)snprintf(battery,sizeof(battery),"Akku: %d %%  voll",*c->battery_percent);
+    else if(rem>0&&rem<60)snprintf(battery,sizeof(battery),"Akku: %d %%  ~%d min bis voll",*c->battery_percent,rem);
+    else if(rem>=60)snprintf(battery,sizeof(battery),"Akku: %d %%  ~%dh%02d bis voll",*c->battery_percent,rem/60,rem%60);
+    else snprintf(battery,sizeof(battery),"Akku: %d %% (laedt)",*c->battery_percent);
+   }else{
+    int rem=get_battery_remaining_minutes();
+    if(rem>=0)snprintf(battery,sizeof(battery),"Akku: %d %%  ~%dh%02d",*c->battery_percent,rem/60,rem%60);
+    else snprintf(battery,sizeof(battery),"Akku: %d %%",*c->battery_percent);
+   }
+  }else snprintf(battery,sizeof(battery),"Akku: --");
+  snprintf(vol,sizeof(vol),"Lautstaerke: %d %%",(volume*100)/MIX_MAX_VOLUME);
+  draw_text(c->renderer,c->font,battery,20,20,c->gray);
+  draw_text_right(c->renderer,c->font,vol,SCREEN_W-20,20,c->gray);
 
   if(running && (stream_meta_last_update==0 || now-stream_meta_last_update>=500U)){
    stream_meta_station[0]='\0';
@@ -179,7 +196,7 @@ void player_render(ScreenContext *c){
   if(!stream_meta_station[0])
    snprintf(stream_meta_station,sizeof(stream_meta_station),"%s",streaming_current_name());
 
-  draw_stream_text_fit(c->renderer,c->font,stream_meta_station[0]?stream_meta_station:"Stream",20,50,SCREEN_W-220,c->gray);
+  draw_stream_text_fit(c->renderer,c->font,stream_meta_station[0]?stream_meta_station:"Stream",20,50,SCREEN_W-40,c->gray);
 
   if(running){
    const int qr_x=SCREEN_W-175;
@@ -188,14 +205,16 @@ void player_render(ScreenContext *c){
    const int text_max=qr_x-35;
 
    draw_stream_title_marquee(c->renderer,c->font,
-                            stream_meta_title[0]?stream_meta_title:"Online Stream",
-                            20,100,SCREEN_W-40,c->selected);
+                             stream_meta_title[0]?stream_meta_title:"Online Stream",
+                             20,100,SCREEN_W-40,c->selected);
    draw_stream_text_fit(c->renderer,c->font,
-                        stream_meta_extra[0]?stream_meta_extra:"LIVE",
-                        20,145,text_max,c->white);
+                        stream_meta_extra[0]?stream_meta_extra:(paused?"PAUSE":"LIVE"),
+                        20,142,text_max,c->white);
    if(stream_meta_description[0])
     draw_stream_text_fit(c->renderer,c->font,stream_meta_description,
-                         20,185,text_max,c->gray);
+                         20,178,text_max,c->gray);
+
+   draw_text(c->renderer,c->font,paused?"Stream: PAUSE":"Stream: LIVE",20,212,c->white);
 
    const char *stream_url=streaming_current_url();
    if(stream_url&&stream_url[0]){
@@ -204,21 +223,30 @@ void player_render(ScreenContext *c){
      draw_text(c->renderer,c->font,"QR: Stream-URL",qr_x,qr_y+real+8,c->gray);
    }
 
-   char idle[96];
+   int timer_y=255;
+   if(c->sleep_timer_active&&*c->sleep_timer_active&&c->sleep_timer_end_ticks){
+    Uint32 rem=*c->sleep_timer_end_ticks>now?*c->sleep_timer_end_ticks-now:0;
+    char sleep[64];int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);
+    snprintf(sleep,sizeof(sleep),"Sleeptimer: %d:%02d",mins,secs);
+    draw_text(c->renderer,c->font,sleep,20,timer_y,c->gray);
+    timer_y+=24;
+   }
    if(idle_timer_minutes>0 && c->idle_timer_remaining_ms){
     Uint32 rem=*c->idle_timer_remaining_ms;
-    int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);
-    snprintf(idle,sizeof(idle),streaming_is_paused()?"Idle: %d:%02d":"Idle: %d:%02d (pausiert)",mins,secs);
-    draw_text(c->renderer,c->font,idle,20,225,c->gray);
+    char idle[64];int mins=(int)(rem/60000),secs=(int)((rem/1000)%60);
+    snprintf(idle,sizeof(idle),paused?"Idle: %d:%02d":"Idle: %d:%02d (pausiert)",mins,secs);
+    draw_text(c->renderer,c->font,idle,20,timer_y,c->gray);
    }
 
-   draw_text(c->renderer,c->font,streaming_is_paused()?"PAUSE":"LIVE",20,270,c->white);
-   draw_text(c->renderer,c->font,"A/START: Pause/Play   B/Links: Streams",20,SCREEN_H-35,c->gray);
+   draw_text(c->renderer,c->font,paused?"PAUSE":"Wiedergabe",20,360,c->white);
+   draw_text(c->renderer,c->font,"A/START: Play/Pause   B: Streams   X: System",20,395,c->gray);
+   draw_text(c->renderer,c->font,"Links: Zurueck zu Streams",20,425,c->gray);
   }else{
    draw_text(c->renderer,c->font,"Stream konnte nicht wiedergegeben werden",20,100,c->selected);
-   draw_text(c->renderer,c->font,"Backend wurde beendet",20,145,c->gray);
-   draw_text(c->renderer,c->font,"B/Links: Zurueck zu Streams",20,SCREEN_H-35,c->gray);
+   draw_text(c->renderer,c->font,"Backend wurde beendet",20,142,c->gray);
+   draw_text(c->renderer,c->font,"B/Links: Zurueck zu Streams",20,395,c->gray);
   }
+  media_feedback_render(c->renderer,c->font,c->selected,c->gray);
   return;
  }
  if(*c->track_count<=0){draw_text(c->renderer,c->font,"Keine Hoerspiele gefunden",20,100,c->gray);media_feedback_render(c->renderer,c->font,c->selected,c->gray);return;}
