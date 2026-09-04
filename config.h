@@ -12,7 +12,7 @@
 #define FONT_PATH "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 #endif
 
-#define APP_VERSION "0.3.65"
+#define APP_VERSION "0.3.66"
 #define SCREEN_W 640
 #define SCREEN_H 480
 #define MAX_BOOKS 200
