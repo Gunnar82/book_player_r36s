@@ -2,6 +2,7 @@
 #include "../scanner.h"
 #include "../audio.h"
 #include "../state.h"
+#include "../recent_history.h"
 #include "../backlight.h"
 #include "../ui.h"
 #include "../bluetooth.h"
@@ -19,7 +20,8 @@ typedef enum {
     BROWSER_PARENT,
     BROWSER_DIRECTORY,
     BROWSER_BOOK,
-    BROWSER_PLAY_CURRENT
+    BROWSER_PLAY_CURRENT,
+    BROWSER_RECENT
 } BrowserEntryType;
 
 typedef struct {
@@ -33,6 +35,8 @@ static int entry_count = 0;
 static int selection = 0;
 static int scroll_offset = 0;
 static int dirty = 1;
+static int recent_mode = 0;
+static int recent_loaded = 0;
 
 void menu_invalidate(void)
 {
@@ -66,6 +70,21 @@ static int find_book_index(ScreenContext *c, const char *path)
     return -1;
 }
 
+static void recent_label(const char *path, char *out, size_t out_size)
+{
+    char tmp[512];
+    snprintf(tmp, sizeof(tmp), "%s", path ? path : "");
+    size_t n = strlen(tmp);
+    while (n > 1 && tmp[n - 1] == '/') tmp[--n] = '\0';
+    char *leaf = strrchr(tmp, '/');
+    if (!leaf) { snprintf(out, out_size, "%s", tmp); return; }
+    *leaf++ = '\0';
+    char *parent = strrchr(tmp, '/');
+    parent = parent ? parent + 1 : tmp;
+    if (parent[0]) snprintf(out, out_size, "%s / %s", parent, leaf);
+    else snprintf(out, out_size, "%s", leaf);
+}
+
 static void add_directory_children(const char *path)
 {
     char names[MAX_BOOKS][256];
@@ -97,8 +116,39 @@ static void add_directory_children(const char *path)
     }
 }
 
+static void build_recent(ScreenContext *c)
+{
+    add_entry(BROWSER_PARENT, "↵ Zurueck", "");
+    int idx[MAX_BOOKS];
+    int count = 0;
+    for (int i = 0; i < progress_count && count < MAX_BOOKS; i++) {
+        if (progress[i].last_played <= 0) continue;
+        if (find_book_index(c, progress[i].path) < 0) continue;
+        idx[count++] = i;
+    }
+    for (int i = 0; i < count - 1; i++) {
+        for (int j = i + 1; j < count; j++) {
+            if (progress[idx[j]].last_played > progress[idx[i]].last_played) {
+                int t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+            }
+        }
+    }
+    int limit = recent_history_count;
+    if (limit > count) limit = count;
+    if (limit <= 0) {
+        add_entry(BROWSER_HEADING, "Noch nichts gehoert", "");
+        return;
+    }
+    for (int i = 0; i < limit; i++) {
+        char label[256];
+        recent_label(progress[idx[i]].path, label, sizeof(label));
+        add_entry(BROWSER_BOOK, label, progress[idx[i]].path);
+    }
+}
+
 static void build_root(ScreenContext *c)
 {
+    add_entry(BROWSER_RECENT, "[Zuletzt gehoert]", "");
     for (int si = 0; si < *c->storage_path_count; si++) {
         if (!c->storage_paths[si].available) continue;
 
@@ -129,10 +179,12 @@ static void build_current_directory(void)
 
 static void rebuild(ScreenContext *c)
 {
+    if (!recent_loaded) { recent_history_load(); recent_loaded = 1; }
     if (!dirty) return;
     entry_count = 0;
 
-    if (!current_path[0]) build_root(c);
+    if (recent_mode) build_recent(c);
+    else if (!current_path[0]) build_root(c);
     else build_current_directory();
 
     if (selection >= entry_count) selection = entry_count - 1;
@@ -186,7 +238,7 @@ static int next_selectable(int from, int direction)
 static int visible_rows(void)
 {
     int rows = (MENU_BOTTOM_Y - MENU_TOP_Y) / MENU_ROW_H;
-    if (current_path[0]) rows--;
+    if (current_path[0] || recent_mode) rows--;
     if (rows < 1) rows = 1;
     return rows;
 }
@@ -229,6 +281,13 @@ static void go_to_end(void)
 
 static void parent_directory(void)
 {
+    if (recent_mode) {
+        recent_mode = 0;
+        selection = 0;
+        scroll_offset = 0;
+        dirty = 1;
+        return;
+    }
     if (!current_path[0]) return;
 
     snprintf(return_selection_path, sizeof(return_selection_path), "%s", current_path);
@@ -289,6 +348,7 @@ static void open_book(ScreenContext *c, const char *path)
         progress[pi].track < *c->track_count)
         *c->track_index = progress[pi].track;
 
+    dirty = 1;
     *c->screen = SCREEN_TRACKS;
 }
 
@@ -299,6 +359,11 @@ static void activate(ScreenContext *c)
 
     if (e->type == BROWSER_PARENT) {
         parent_directory();
+    } else if (e->type == BROWSER_RECENT) {
+        recent_mode = 1;
+        selection = 0;
+        scroll_offset = 0;
+        dirty = 1;
     } else if (e->type == BROWSER_DIRECTORY) {
         enter_directory(c, e->path);
     } else if (e->type == BROWSER_BOOK ||
@@ -314,7 +379,7 @@ void menu_handle_event(ScreenContext *c, const SDL_Event *e)
     if (e->type == SDL_JOYBUTTONDOWN) {
         int b = e->jbutton.button;
         if (b == BUTTON_B) { *c->screen = SCREEN_PLAYER; return; }
-        if (b == BUTTON_DPAD_LEFT) { if (current_path[0]) parent_directory(); else *c->screen = SCREEN_PLAYER; return; }
+        if (b == BUTTON_DPAD_LEFT) { if (current_path[0] || recent_mode) parent_directory(); else *c->screen = SCREEN_PLAYER; return; }
         if (b == BUTTON_DPAD_RIGHT) { activate(c); return; }
         if (b == BUTTON_DPAD_UP) { move_selection(-1, 1); return; }
         if (b == BUTTON_DPAD_DOWN) { move_selection(1, 1); return; }
@@ -369,7 +434,10 @@ void menu_render(ScreenContext *c)
     int rows = visible_rows();
     int y = MENU_TOP_Y;
 
-    if (current_path[0]) {
+    if (recent_mode) {
+        draw_text(c->renderer, c->font, "Zuletzt gehoert", 20, y, c->gray);
+        y += MENU_ROW_H;
+    } else if (current_path[0]) {
         draw_text(c->renderer, c->font, current_path, 20, y, c->gray);
         y += MENU_ROW_H;
     }
@@ -397,7 +465,7 @@ void menu_render(ScreenContext *c)
     }
 
     if (entry_count > rows) {
-        int track_y = current_path[0] ? MENU_TOP_Y + MENU_ROW_H : MENU_TOP_Y;
+        int track_y = (current_path[0] || recent_mode) ? MENU_TOP_Y + MENU_ROW_H : MENU_TOP_Y;
         int track_h = MENU_BOTTOM_Y - track_y;
         int thumb_h = (track_h * rows) / entry_count;
         if (thumb_h < 18) thumb_h = 18;
