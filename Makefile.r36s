@@ -23,6 +23,7 @@ SOURCES := \
 	update_check.c \
 	update_install.c \
 	state.c \
+	recent_history.c \
 	backlight.c \
 	battery.c \
 	battery_bluez.c \

@@ -26,6 +26,8 @@ menu_font_size=1
 repeat_book=0
 shutdown_after_tracks=0
 shutdown_at_book_end=0
+# Anzahl der Eintraege unter "Zuletzt gehoert" (1-50)
+recent_history_count=10
 
 [download]
 # Downloads sind standardmaessig deaktiviert.
