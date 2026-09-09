@@ -15,7 +15,6 @@ led_gpio_mode=auto
 
 [ui]
 # Dauerhafte Benutzeroberflaechen-/Systemeinstellungen
-volume=128
 idle_timer_minutes=0
 display_timeout_seconds=60
 # 0=Klein, 1=Normal, 2=Gross, 3=Sehr gross
